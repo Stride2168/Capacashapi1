@@ -11,9 +11,9 @@ namespace CapacashApi.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_Wallets_Users_UserId",
-                table: "Wallets");
+           // migrationBuilder.DropForeignKey(
+               // name: "FK_Wallets_Users_UserId",
+              //  table: "Wallets");
 
             migrationBuilder.DropIndex(
                 name: "IX_Wallets_UserId",
@@ -35,9 +35,9 @@ namespace CapacashApi.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_Wallets_Users_Id",
-                table: "Wallets");
+           // migrationBuilder.DropForeignKey(
+              //  name: "FK_Wallets_Users_Id",
+               // table: "Wallets");
 
             migrationBuilder.AddColumn<Guid>(
                 name: "UserId",

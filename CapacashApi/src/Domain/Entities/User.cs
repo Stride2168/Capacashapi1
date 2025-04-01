@@ -10,4 +10,5 @@ public class User
     public bool IsApproved { get; set; } = false;  // New approval field
     public string? CompanyId { get; set; }  // Needed for Employee registration
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    
 }

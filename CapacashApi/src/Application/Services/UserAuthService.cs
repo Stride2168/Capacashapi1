@@ -13,12 +13,14 @@ namespace Capacash.Application.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly IConfiguration _configuration;
+private readonly IKioskRepository _kioskRepository;
+      public UserAuthService(IUserRepository userRepository, IKioskRepository kioskRepository, IConfiguration configuration)
+{
+    _userRepository = userRepository;
+    _kioskRepository = kioskRepository; // Assign the injected repository
+    _configuration = configuration;
+}
 
-        public UserAuthService(IUserRepository userRepository, IConfiguration configuration)
-        {
-            _userRepository = userRepository;
-            _configuration = configuration;
-        }
 public async Task<string> RegisterUserAsync(string fullName, string email, string password, string companyId)
 {
     var existingUser = await _userRepository.GetByEmailAsync(email);
@@ -46,9 +48,6 @@ public async Task<string> RegisterUserAsync(string fullName, string email, strin
     return "Registration successful! Waiting for Admin approval.";
 }
 
-
-
-
      public async Task<string> LoginAsync(string email, string password)
 {
     var user = await _userRepository.GetByEmailAsync(email);
@@ -62,7 +61,7 @@ public async Task<string> RegisterUserAsync(string fullName, string email, strin
 }
 
 
-    private string GenerateJwtToken(User user)
+private string GenerateJwtToken(User user)
 {
     var jwtKey = _configuration["Jwt:Key"];
     if (string.IsNullOrEmpty(jwtKey))
@@ -73,12 +72,11 @@ public async Task<string> RegisterUserAsync(string fullName, string email, strin
 
     var claims = new List<Claim>
     {
-        new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+        new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),  // user.Id is a Guid here
         new Claim(JwtRegisteredClaimNames.Email, user.Email),
         new Claim(ClaimTypes.Role, user.Role)
     };
 
-    // ✅ Only add CompanyId if it is not null or empty
     if (!string.IsNullOrEmpty(user.CompanyId))
     {
         claims.Add(new Claim("CompanyId", user.CompanyId));
@@ -93,6 +91,35 @@ public async Task<string> RegisterUserAsync(string fullName, string email, strin
 
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
+
+
+private string GenerateKioskJwtToken(string kioskId)
+{
+    var jwtKey = _configuration["Jwt:Key"];
+    if (string.IsNullOrEmpty(jwtKey))
+        throw new Exception("JWT Key is missing from configuration.");
+
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+    var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+    var claims = new List<Claim>
+    {
+        new Claim(JwtRegisteredClaimNames.Sub, kioskId)  // Using kioskId as string
+    };
+
+    var token = new JwtSecurityToken(
+        _configuration["Jwt:Issuer"] ?? "DefaultIssuer",
+        _configuration["Jwt:Audience"] ?? "DefaultAudience",
+        claims,
+        expires: DateTime.UtcNow.AddHours(2),
+        signingCredentials: credentials);
+
+    return new JwtSecurityTokenHandler().WriteToken(token);
+}
+
+
+
+
 
 public async Task<string> RegisterAdminAsync(string fullName, string email, string password, string companyId)
 {

@@ -8,8 +8,9 @@ namespace Capacash.Infrastructure.Persistence
 {
     public class AppDbContext : DbContext
     {
+        
         public DbSet<User> Users { get; set; }
-
+   public DbSet<Kiosk> Kiosks { get; set; } = null!;
         public DbSet<Employee> Employees { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
     public DbSet<Wallet> Wallets { get; set; } 

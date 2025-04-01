@@ -1,5 +1,6 @@
 using Capacash.Application.Common.Interfaces;
 using Capacash.Application.Services;
+using Capacash.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Capacash.Web.Endpoints
@@ -65,6 +66,7 @@ namespace Capacash.Web.Endpoints
                 return BadRequest(new { Error = ex.Message });
             }
         }
+
 
         [HttpPost("register-admin")]
         public async Task<IActionResult> RegisterAdmin([FromBody] RegisterAdminDto dto)

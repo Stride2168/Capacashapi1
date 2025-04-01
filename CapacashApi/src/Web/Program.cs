@@ -45,6 +45,7 @@ builder.AddWebServices();
 builder.Services.AddControllers();
 builder.Services.AddScoped<UserAuthService>();
 builder.Services.AddInfrastructure();
+builder.Services.AddScoped<IKioskRepository, KioskRepository>();
 
 
 
