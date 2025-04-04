@@ -13,4 +13,5 @@ Task UpdateRangeAsync(List<User> users);
 Task<List<User>> GetUnapprovedEmployeesByCompanyAsync(string companyId);
   Task<User?> GetByIdAsync(Guid id);
     Task<bool> ExistsAdminForCompanyAsync(string companyId);
+     Task<User?> GetUserByIdAsync(Guid userId);
 }

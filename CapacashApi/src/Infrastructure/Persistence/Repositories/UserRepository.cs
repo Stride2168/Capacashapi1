@@ -67,6 +67,11 @@ public async Task<User?> GetByIdAsync(Guid id)
 {
     return await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
 }
-
+   public async Task<User?> GetUserByIdAsync(Guid userId)
+        {
+            // Use the context to find the user by their ID in the database
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId);
+        }
 
 }

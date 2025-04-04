@@ -59,5 +59,6 @@ namespace Capacash.Web.Controllers
 
             return Ok(new { Token = tokenString });
         }
+        
     }
 }

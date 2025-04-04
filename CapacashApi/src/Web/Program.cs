@@ -46,8 +46,8 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<UserAuthService>();
 builder.Services.AddInfrastructure();
 builder.Services.AddScoped<IKioskRepository, KioskRepository>();
-
-
+builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+builder.Services.AddScoped<ITransactionService, TransactionService>();
 
 var app = builder.Build(); 
 
