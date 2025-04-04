@@ -8,7 +8,7 @@ namespace Capacash.Web.Endpoints
 {
     [ApiController]
     [Route("api/wallet")]
-    [Authorize] // ✅ Require authentication
+    [Authorize] 
     public class WalletController : ControllerBase
     {
         private readonly IWalletRepository _walletRepository;

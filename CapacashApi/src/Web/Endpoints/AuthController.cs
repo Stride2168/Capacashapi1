@@ -10,27 +10,13 @@ namespace Capacash.Web.Endpoints
     public class AuthController : ControllerBase
     {
         private readonly UserAuthService _userAuthService;
-        private readonly IUserRepository _userRepository; // ✅ Injected repository
-
+        private readonly IUserRepository _userRepository; 
         public AuthController(UserAuthService userAuthService, IUserRepository userRepository)
         {
             _userAuthService = userAuthService ?? throw new ArgumentNullException(nameof(userAuthService));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         }
 
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
-        {
-            try
-            {
-                var token = await _userAuthService.RegisterUserAsync(request.FullName, request.Email, request.Password, request.CompanyId);
-                return Ok(new { Token = token });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { Error = ex.Message });
-            }
-        }
 
         [HttpPost("register-employee")]
         public async Task<IActionResult> RegisterEmployee([FromBody] RegisterEmployeeDto dto)

@@ -42,7 +42,7 @@ public class UserRepository : IUserRepository
 
     public async Task UpdateAsync(User user)
     {
-        _context.Users.Update(user); // ✅ Fixed _dbContext -> _context
+        _context.Users.Update(user); //  Fixed _dbContext -> _context
         await _context.SaveChangesAsync();
     }
     public async Task<List<User>> GetUnapprovedUsersByCompanyAsync(string companyId)

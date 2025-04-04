@@ -10,7 +10,7 @@ namespace Capacash.Domain.Entities
         public int Id { get; set; }
 
         [Required]
-        public string? TransactionId { get; set; } // ✅ Unique Transaction ID
+        public string? TransactionId { get; set; } //  Unique Transaction ID
 
         [Required]
         public Guid UserId { get; set; } 
@@ -31,7 +31,7 @@ namespace Capacash.Domain.Entities
             UserId = userId;
             Amount = amount;
             TransactionDate = DateTime.UtcNow;
-            TransactionId = GenerateTransactionId(); // ✅ Generate Transaction ID
+            TransactionId = GenerateTransactionId(); //  Generate Transaction ID
         }
 
         private string GenerateTransactionId()
