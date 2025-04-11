@@ -3,6 +3,8 @@ using Microsoft.Extensions.Configuration;
 using Capacash.Domain.Entities;
 using System;
 using System.IO;
+using Capacash.Infrastructure.Persistence.Configuration;
+using Capacash.Infrastructure.Persistence.Configurations;
 
 namespace Capacash.Infrastructure.Persistence
 {
@@ -10,10 +12,10 @@ namespace Capacash.Infrastructure.Persistence
     {
         
         public DbSet<User> Users { get; set; }
-   public DbSet<Kiosk> Kiosks { get; set; } = null!;
+        public DbSet<Kiosk> Kiosks { get; set; } = null!;
         public DbSet<Employee> Employees { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
-    public DbSet<Wallet> Wallets { get; set; } 
+            public DbSet<Wallet> Wallets { get; set; } 
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options)
         {
@@ -41,6 +43,17 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         optionsBuilder.UseSqlServer(connectionString, b => b.MigrationsAssembly("CapacashApi.Infrastructure")); // 👈 Set correct migrations assembly
     }
 }
+   protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
 
+            // Apply entity configurations
+            modelBuilder.ApplyConfiguration(new EmployeeConfiguration());
+            modelBuilder.ApplyConfiguration(new UserConfiguration());
+            modelBuilder.ApplyConfiguration(new WalletConfiguration());
+            modelBuilder.ApplyConfiguration(new KioskConfiguration());
+            modelBuilder.ApplyConfiguration(new TransactionConfiguration());
+
+        }
     }
 }

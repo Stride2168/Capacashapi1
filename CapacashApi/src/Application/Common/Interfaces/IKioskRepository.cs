@@ -13,7 +13,8 @@ namespace Capacash.Application.Common.Interfaces
         
         // Add companyId parameter to the method
         Task<List<Kiosk>> GetAllKiosksAsync(string companyId);
-        
+        Task<Kiosk?> GetKioskByKioskIdAndCompanyAsync(string kioskId, string companyId);
+
         Task<bool> DeleteKioskAsync(Guid id);
     }
 }

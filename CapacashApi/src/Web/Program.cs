@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using NSwag.AspNetCore;
-using Capacash.Application.Services;
+using Capacash.Infrastructure.Services;
 using Capacash.Application.Common.Interfaces;
 using Capacash.Infrastructure.Repositories;
 
@@ -31,12 +31,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
+
 builder.Services.AddAuthorization();
-builder.Services.AddScoped<AdminService>();
+
 builder.Services.AddScoped<UserAuthService>(); // Ensure it's registered
 builder.Services.AddScoped<IWalletService, WalletService>();  
 builder.Services.AddScoped<IWalletRepository, WalletRepository>(); 
-
+   builder.Services.AddScoped<Capacash.Infrastructure.Services.AdminService>();
 // DO NOT Move ALL service registrations before `Build()`
 builder.AddKeyVaultIfConfigured();
 builder.AddApplicationServices();
@@ -48,6 +50,7 @@ builder.Services.AddInfrastructure();
 builder.Services.AddScoped<IKioskRepository, KioskRepository>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
+
 
 var app = builder.Build(); 
 

@@ -24,6 +24,11 @@ namespace Capacash.Infrastructure.Repositories
             await _context.SaveChangesAsync();
             return kiosk;
         }
+public async Task<Kiosk?> GetKioskByKioskIdAndCompanyAsync(string kioskId, string companyId)
+{
+    return await _context.Kiosks
+        .FirstOrDefaultAsync(k => k.KioskId == kioskId && k.CompanyId == companyId);
+}
 
         public async Task<Kiosk?> GetKioskByIdAsync(Guid id)
         {
@@ -50,5 +55,6 @@ namespace Capacash.Infrastructure.Repositories
             await _context.SaveChangesAsync();
             return true;
         }
+        
     }
 }
