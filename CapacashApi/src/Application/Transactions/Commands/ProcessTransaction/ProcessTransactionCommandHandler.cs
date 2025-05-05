@@ -1,37 +1,58 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using Capacash.Domain.Entities;
 using Capacash.Application.Common.Interfaces;
-using MediatR;
+using Microsoft.Extensions.Logging;
 
-namespace Capacash.Application.Transactions.Commands.ProcessTransaction
+public class ProcessTransactionCommandHandler : IRequestHandler<ProcessTransactionCommand, string>
 {
-    public class ProcessTransactionCommandHandler : IRequestHandler<ProcessTransactionCommand, string>
+    private readonly IAppDbContext _context;
+    private readonly IUserRepository _userRepository;
+    private readonly ILogger<ProcessTransactionCommandHandler> _logger;
+
+    public ProcessTransactionCommandHandler(
+         IAppDbContext context,
+        IUserRepository userRepository,
+        ILogger<ProcessTransactionCommandHandler> logger)
     {
-        private readonly ITransactionService _transactionService;
-        private readonly IKioskRepository _kioskRepository;
-
-        public ProcessTransactionCommandHandler(ITransactionService transactionService, IKioskRepository kioskRepository)
-        {
-            _transactionService = transactionService;
-            _kioskRepository = kioskRepository;
-        }
-
-        public async Task<string> Handle(ProcessTransactionCommand request, CancellationToken cancellationToken)
-        {
-            // ✅ Validate kiosk
-            var kiosk = await _kioskRepository.GetKioskByKioskIdAsync(request.KioskId);
-            if (kiosk == null)
-                throw new UnauthorizedAccessException("Unauthorized: Invalid kiosk.");
-
-            // ✅ Validate user ID
-            if (request.UserId == Guid.Empty)
-                throw new ArgumentException("UserId cannot be empty.");
-
-            // ✅ Call the transaction service
-            await _transactionService.ProcessTransactionAsync(request.UserId, request.Amount);
-
-            return "Transaction successful.";
-        }
+        _context = context; 
+        _userRepository = userRepository;
+        _logger = logger;
     }
+
+   public async Task<string> Handle(ProcessTransactionCommand request, CancellationToken cancellationToken)
+{
+    var user = await _userRepository.GetUserByIdAsync(request.UserId)
+        ?? throw new UnauthorizedAccessException("User not found");
+
+    // Get kiosk by its string-based ID
+    var kiosk = await _context.Kiosks
+        .FirstOrDefaultAsync(k => k.KioskId == request.KioskId, cancellationToken)
+        ?? throw new InvalidOperationException("Invalid kiosk");
+
+    // Ensure user belongs to same company
+    if (user.CompanyId != kiosk.CompanyId)
+        throw new InvalidOperationException("User and kiosk company mismatch");
+
+    var wallet = await _context.Wallets
+        .FirstOrDefaultAsync(w => w.UserId == request.UserId, cancellationToken)
+        ?? throw new InvalidOperationException("Wallet not found");
+
+    // Deduct balance
+    wallet.DeductBalance(request.Amount);
+
+    // Create transaction using kiosk.Guid (not kiosk.KioskId string)
+    var transaction = new Transaction(
+        userId: request.UserId,
+        amount: request.Amount,
+        transactionType: request.TransactionType,
+        companyId: user.CompanyId,
+        kioskId: kiosk.Id  // This is Guid, as required
+    );
+
+    _context.Transactions.Add(transaction);
+    await _context.SaveChangesAsync(cancellationToken);
+
+    return $"Purchased ₱{request.Amount:0.00} at Kiosk {request.KioskId}";
+}
+
+
 }

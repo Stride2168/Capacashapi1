@@ -102,6 +102,12 @@ namespace CapacashApi.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("CompanyId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("KioskId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("TransactionDate")
                         .HasColumnType("datetime2");
 
@@ -110,10 +116,17 @@ namespace CapacashApi.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("KioskId");
 
                     b.HasIndex("UserId");
 
@@ -150,6 +163,10 @@ namespace CapacashApi.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -171,6 +188,10 @@ namespace CapacashApi.Infrastructure.Migrations
                     b.Property<decimal>("Balance")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -189,6 +210,23 @@ namespace CapacashApi.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Capacash.Domain.Entities.Transaction", b =>
+                {
+                    b.HasOne("Capacash.Domain.Entities.Kiosk", "Kiosk")
+                        .WithMany()
+                        .HasForeignKey("KioskId");
+
+                    b.HasOne("Capacash.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Kiosk");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Capacash.Domain.Entities.Wallet", b =>
                 {
                     b.HasOne("Capacash.Domain.Entities.User", "User")
                         .WithMany()

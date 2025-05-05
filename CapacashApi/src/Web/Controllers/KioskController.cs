@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Capacash.Application.Common.Interfaces;
 using Capacash.Web.Models;
 using System.Security.Claims;
-using Capacash.Application.Transactions.Commands.ProcessTransaction;
+
 
 
 namespace Capacash.Web.Controllers
@@ -17,34 +17,32 @@ namespace Capacash.Web.Controllers
     {
     
 private readonly IMediator _mediator;
-        // Inject the necessary services
         public KioskController( IMediator mediator)
         {
             
           _mediator = mediator;
         }
 
-       [HttpPost("process-transaction")]
-public async Task<IActionResult> ProcessTransaction([FromBody] TransactionDto dto)
+[HttpPost("generate-qr")]
+public async Task<IActionResult> GenerateQrCode([FromBody] decimal amount)
 {
     try
     {
-        var kioskId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(kioskId))
-            return Unauthorized(new { Error = "No Kiosk ID found." });
+        // The command handler returns a base64 string
+        var base64String = await _mediator.Send(new GenerateQrCommand(amount));
 
-        var result = await _mediator.Send(new ProcessTransactionCommand(dto.UserId, dto.Amount, kioskId));
-        return Ok(new { Message = result });
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        return Unauthorized(new { Error = ex.Message });
+        // Decode base64 into bytes
+        var imageBytes = Convert.FromBase64String(base64String);
+
+        // Return image as PNG file
+        return File(imageBytes, "image/png");
     }
     catch (Exception ex)
     {
         return BadRequest(new { Error = ex.Message });
     }
 }
+
 
 
     }

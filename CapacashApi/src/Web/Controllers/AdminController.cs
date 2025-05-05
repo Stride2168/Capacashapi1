@@ -1,273 +1,294 @@
-using Capacash.Application.Common.Interfaces;
 using Capacash.Application.Kiosks.Queries;
-using Capacash.Domain.Entities;
-using Capacash.Infrastructure.Persistence;
-using Capacash.Infrastructure.Persistence.Repositories;
-using Capacash.Infrastructure.Services;
 using Capacash.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
-using MediatR;
-
+using Capacash.Application.Transactions.Queries;
+using Capacash.Application.Wallets.Commands.CreditWallet.CreditWalletCommand;
+using Capacash.Application.Kiosks.Commands.CreateKiosk;
+using Capacash.Application.Users.Commands.ApproveUsers.ApproveUserCommand;
+using Capacash.Application.Users.Queries.GetUnapprovedUsers;
+using Capacash.Application.Wallets.Queries;
+using Capacash.Application.Commons.DTOs;
 namespace Capacash.WebAPI.Controllers
 {
-    [Route("api/admin")]
-    [ApiController]
-    [Authorize(Roles = "Admin")] // Only Admins can access
-    public class AdminController : ControllerBase
-    {
-        private readonly AdminService _adminService;
-        private readonly IWalletService _walletService; // Added IWalletService
-        private readonly IKioskRepository _kioskRepository;  // Added IKioskRepository for Kiosk actions
-        private readonly ITransactionService _transactionService;  // Added ITransactionService for handling transactions
-private readonly IUserRepository _userRepository; 
-private readonly IMediator _mediator;
-    private readonly ITransactionRepository _transactionRepository;  // Added this also
-        // Inject IWalletService and other dependencies into the constructor
-        public AdminController(AdminService adminService, IWalletService walletService, 
-        IKioskRepository kioskRepository, ITransactionService transactionService, IUserRepository userRepository,  
-        ITransactionRepository transactionRepository, IMediator mediator )
-        {
-            _adminService = adminService;
-            _walletService = walletService;
-            _kioskRepository = kioskRepository;  
-            _transactionService = transactionService; 
-            _userRepository = userRepository;
-            _transactionRepository = transactionRepository; 
-             _mediator = mediator;
-        }
-
-        // Admin creates a kiosk with a unique ID and password
-   [HttpPost("kiosk/create")]
-public async Task<IActionResult> CreateKiosk([FromBody] CreateKioskRequest request)
+   [Route("api/admin")]
+[ApiController]
+[Authorize(Roles = "Admin")]
+public class AdminController : ControllerBase
 {
-    if (string.IsNullOrWhiteSpace(request.KioskId) || string.IsNullOrWhiteSpace(request.Password))
-        return BadRequest(new { Error = "Kiosk ID and Password are required." });
-
-    // ✅ Extract the CompanyId from the JWT token (admin's companyId)
-    var companyId = User.FindFirst("CompanyId")?.Value;
-    if (string.IsNullOrEmpty(companyId))
-        return Unauthorized(new { Error = "Company ID is missing in the token." });
-
-    // ✅ Check if a kiosk with the same KioskId already exists in the same company
-    var existingKiosk = await _kioskRepository.GetKioskByKioskIdAndCompanyAsync(request.KioskId, companyId);
-    if (existingKiosk != null)
+    private readonly IMediator _mediator;
+    
+    public AdminController(IMediator mediator)
     {
-        return Conflict(new { Error = "A kiosk with the same Kiosk ID already exists in your company." });
+        _mediator = mediator;
     }
 
-    // ✅ Hash the password for security
-    string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+    [HttpPost("kiosk/create")]
+    public async Task<IActionResult> CreateKiosk([FromBody] CreateKioskRequest request)
+    {
+        var companyId = User.FindFirst("CompanyId")?.Value;
+        if (string.IsNullOrEmpty(companyId))
+            return Unauthorized(new { Error = "Company ID is missing in the token." });
 
-    // ✅ Create the kiosk
-    var kiosk = await _kioskRepository.CreateKioskAsync(request.KioskId, passwordHash, request.Name, request.Location, companyId);
-    return Ok(kiosk);
+        var command = new CreateKioskCommand(
+            request.KioskId,
+            request.Password,
+            request.Name,
+            request.Location,
+            companyId
+        );
+
+        var result = await _mediator.Send(command);
+        return Ok(result);
+    }
+
+    [HttpGet("kiosk/all")]
+    public async Task<IActionResult> GetAllKiosks()
+    {
+        var companyId = User.FindFirst("CompanyId")?.Value;
+        if (string.IsNullOrEmpty(companyId))
+            return Unauthorized(new { Error = "Company ID is missing in the token." });
+
+        var query = new GetAllKiosksQuery(companyId);
+        var result = await _mediator.Send(query);
+        return Ok(result);
+    }
+
+    [HttpPost("credit")]
+public async Task<IActionResult> CreditEmployeeWallet([FromBody] CreditRequest request)
+{
+    var adminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var companyId = User.FindFirst("CompanyId")?.Value;
+
+    if (string.IsNullOrEmpty(adminId) || string.IsNullOrEmpty(companyId))
+        return Unauthorized(new { Error = "Invalid admin session." });
+
+    if (!Guid.TryParse(adminId, out var adminGuid))
+    {
+        return Unauthorized(new { Error = "Invalid admin ID." });
+    }
+
+    var command = new CreditWalletCommand(
+        request.UserId,
+        request.Amount,
+        adminGuid,
+        companyId
+    );
+
+    await _mediator.Send(command);
+    return Ok("Credit added successfully.");
 }
 
 
-        // Admin can view all kiosks
- [HttpGet("kiosk/all")]
-public async Task<IActionResult> GetAllKiosks()
+  
+
+[HttpGet("transactions")]
+public async Task<IActionResult> GetAllTransactions(
+    [FromQuery] Guid? userId,
+    [FromQuery] string? transactionType,
+    [FromQuery] string? dateRange,
+    [FromQuery] DateTime? startDate,
+    [FromQuery] DateTime? endDate)
 {
     var companyId = User.FindFirst("CompanyId")?.Value;
-    if (string.IsNullOrEmpty(companyId))
+    if (string.IsNullOrWhiteSpace(companyId))
         return Unauthorized(new { Error = "Company ID is missing in the token." });
 
-    var result = await _mediator.Send(new GetAllKiosksQuery(companyId));
+    // Process date range filters
+    var dateFilter = ProcessDateFilter(dateRange, ref startDate, ref endDate);
+
+    var query = new GetTransactionsQuery(
+    companyId,
+    userId,
+    transactionType,
+    startDate ?? dateFilter.StartDate,
+    endDate ?? dateFilter.EndDate
+);
+
+
+    var result = await _mediator.Send(query);
     return Ok(result);
 }
 
-        // Admin can get a kiosk by ID
-        [HttpGet("kiosk/{id}")]
-        public async Task<IActionResult> GetKiosk(Guid id)
-        {
-            var kiosk = await _kioskRepository.GetKioskByIdAsync(id);
-            if (kiosk == null) return NotFound(new { Error = "Kiosk not found." });
-            return Ok(kiosk);
-        }
-
-        // Admin can delete a kiosk
-        [HttpDelete("kiosk/delete/{id}")]
-        public async Task<IActionResult> DeleteKiosk(Guid id)
-        {
-            var success = await _kioskRepository.DeleteKioskAsync(id);
-            if (!success) return NotFound(new { Error = "Kiosk not found." });
-            return Ok(new { Message = "Kiosk deleted successfully." });
-        }
-
-        // Admin approves an employee by ID
-        [HttpPost("approve-employee/{id}")]
-        public async Task<IActionResult> ApproveEmployee(Guid id)
-        {
-            var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(adminId))
-                return Unauthorized(new { Message = "Unauthorized access." });
-
-            var success = await _adminService.ApproveEmployeeByIdAsync(id, Guid.Parse(adminId));
-
-            if (!success)
-                return NotFound(new { Message = "Employee not found or unauthorized approval attempt." });
-
-            return Ok(new { Message = "Employee approved successfully." });
-        }
-
-        // Admin can view all unapproved employees
-        [HttpGet("unapproved-employees")]
-        public async Task<IActionResult> GetUnapprovedEmployees()
-        {
-            var adminCompanyId = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
-
-            if (string.IsNullOrEmpty(adminCompanyId))
-                return Unauthorized(new { Message = "Invalid admin session." });
-
-            var employees = await _adminService.GetUnapprovedEmployeesByCompanyAsync(adminCompanyId);
-
-            if (employees.Count == 0)
-                return NotFound(new { Message = "No unapproved employees found for your company." });
-
-            return Ok(employees);
-        }
-
-        // Admin adds credit to an employee's wallet
-       [HttpPost("credit")]
-public async Task<IActionResult> CreditEmployeeWallet([FromBody] CreditRequest request)
+private (DateTime? StartDate, DateTime? EndDate) ProcessDateFilter(string? dateRange, ref DateTime? startDate, ref DateTime? endDate)
 {
-    try
+    if (!string.IsNullOrEmpty(dateRange))
     {
-        if (request.Amount <= 0)
-            return BadRequest("Amount must be greater than zero.");
-
-        // Get the admin's userId from the current session or token
-        var adminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        
-        if (string.IsNullOrEmpty(adminId))
-            return Unauthorized(new { Error = "Invalid admin session." });
-
-        // Retrieve admin information (assuming _userRepository is available)
-        var admin = await _userRepository.GetUserByIdAsync(Guid.Parse(adminId));
-        if (admin == null || string.IsNullOrEmpty(admin.CompanyId))
-            return Unauthorized(new { Error = "Unauthorized: Admin company not found." });
-
-        // Retrieve the employee's information
-        var employee = await _userRepository.GetUserByIdAsync(request.UserId);
-        if (employee == null)
-            return NotFound(new { Error = "Employee not found." });
-
-        // Check if the employee's companyId matches the admin's companyId
-        if (employee.CompanyId != admin.CompanyId)
-            return Unauthorized(new { Error = "You are not authorized to credit this employee's wallet." });
-
-        // Call the service to add credit
-        await _walletService.AddCreditToWalletAsync(request.UserId, request.Amount);
-
-        return Ok("Credit added successfully.");
+        var now = DateTime.UtcNow;
+        switch (dateRange.ToLower())
+        {
+            case "today":
+                startDate = now.Date;
+                break;
+            case "yesterday":
+                startDate = now.Date.AddDays(-1);
+                endDate = now.Date.AddMilliseconds(-1);
+                break;
+            case "lastweek":
+                startDate = now.Date.AddDays(-7);
+                break;
+            case "last30days":
+                startDate = now.Date.AddDays(-30);
+                break;
+            case "thismonth":
+                startDate = new DateTime(now.Year, now.Month, 1);
+                break;
+            case "lastmonth":
+                var firstDayOfLastMonth = new DateTime(now.Year, now.Month, 1).AddMonths(-1);
+                startDate = firstDayOfLastMonth;
+                endDate = firstDayOfLastMonth.AddMonths(1).AddMilliseconds(-1);
+                break;
+        }
     }
-    catch (Exception ex)
-    {
-        return BadRequest(ex.Message);
-    }
+
+    return (startDate, endDate);
 }
 
-
- // Admin can view all employee wallets belonging to the same company
-[HttpGet("wallets")]
-public async Task<IActionResult> GetAllWallets()
-{
-    try
-    {
-        // Get the Admin's ID from the JWT token
-        var adminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(adminId))
-            return Unauthorized(new { Error = "Invalid admin session." });
-
-        // Retrieve the admin's details and get their CompanyId
-        var admin = await _userRepository.GetUserByIdAsync(Guid.Parse(adminId));
-        if (admin == null || string.IsNullOrEmpty(admin.CompanyId))
-            return Unauthorized(new { Error = "Unauthorized: Admin company not found." });
-
-        // Fetch all wallets that belong to the admin's company
-        var wallets = await _walletService.GetWalletsByCompanyIdAsync(admin.CompanyId);
-        return Ok(wallets);
-    }
-    catch (Exception ex)
-    {
-        // Return a bad request if there's an error
-        return BadRequest(ex.Message);
-    }
-}
-
-      [HttpGet("wallet/{userId}")]
-public async Task<IActionResult> GetEmployeeWallet(Guid userId)
-{
-    try
-    {
-        // Get the admin's userId from the current session or token
-        var adminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        
-        if (string.IsNullOrEmpty(adminId))
-            return Unauthorized(new { Error = "Invalid admin session." });
-
-        // Retrieve admin information (assuming _userRepository is available)
-        var admin = await _userRepository.GetUserByIdAsync(Guid.Parse(adminId));
-        if (admin == null || string.IsNullOrEmpty(admin.CompanyId))
-            return Unauthorized(new { Error = "Unauthorized: Admin company not found." });
-
-        // Retrieve the employee's wallet
-        var wallet = await _walletService.GetWalletByUserIdAsync(userId);
-
-        if (wallet == null)
-            return NotFound(new { Error = "Wallet not found for the specified user." });
-
-        // Check if the employee's companyId matches the admin's companyId
-        var employee = await _userRepository.GetUserByIdAsync(userId);
-        if (employee == null || employee.CompanyId != admin.CompanyId)
-            return Unauthorized(new { Error = "You are not authorized to view this employee's wallet." });
-
-        return Ok(wallet);
-    }
-    catch (Exception ex)
-    {
-        return BadRequest(ex.Message);
-    }
-}
-
-[HttpGet("transactions")]
-public async Task<IActionResult> GetAllTransactions([FromQuery] Guid? userId, [FromQuery] string? filter)
+    
+[HttpPost("approve-user/{userId}")]
+public async Task<IActionResult> ApproveUser(Guid userId)
 {
     var adminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(adminId))
-        return Unauthorized(new { Error = "Invalid admin session." });
-
-    var admin = await _userRepository.GetUserByIdAsync(Guid.Parse(adminId));
-    if (admin == null || string.IsNullOrEmpty(admin.CompanyId))
-        return Unauthorized(new { Error = "Unauthorized: Admin company not found." });
-
-    DateTime? startDate = null;
-    DateTime? endDate = DateTime.UtcNow;
-
-    switch (filter)
+    var companyId = User.FindFirst("CompanyId")?.Value;
+    
+    if (string.IsNullOrEmpty(adminId) || string.IsNullOrEmpty(companyId))
     {
-        case "today":
-            startDate = DateTime.UtcNow.Date;
-            break;
-        case "lastWeek":
-            startDate = DateTime.UtcNow.AddDays(-7);
-            break;
-        case "last30Days":
-            startDate = DateTime.UtcNow.AddDays(-30);
-            break;
+        return Unauthorized(new { Error = "Invalid admin session." });
     }
 
-    var transactions = await _transactionRepository.GetTransactions1ByCompanyIdAsync(admin.CompanyId, startDate, endDate);
-    return Ok(transactions);
+    try
+    {
+        await _mediator.Send(new ApproveUserCommand(
+            userId,
+            Guid.Parse(adminId),
+            companyId
+        ));
+        return Ok(new { Message = "User approved successfully." });
+    }
+    catch (NotFoundException)
+    {
+        return NotFound(new { Error = "User not found." });
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return Unauthorized(new { Error = "Cannot approve user from another company." });
+    }
+    catch (InvalidOperationException ex)  // Only keep where the message might vary
+    {
+        return BadRequest(new { Error = ex.Message });
+    }
+    catch
+    {
+        return StatusCode(500, new { Error = "An error occurred while approving the user." });
+    }
+}
+    [HttpPost("bulk-approve-users")]
+    public async Task<IActionResult> BulkApproveUsers()
+    {
+        var adminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var companyId = User.FindFirst("CompanyId")?.Value;
+        
+        if (string.IsNullOrEmpty(adminId) || string.IsNullOrEmpty(companyId))
+        {
+            return Unauthorized(new { Error = "Invalid admin session." });
+        }
+
+        try
+        {
+            var count = await _mediator.Send(new BulkApproveUsersCommand(
+                Guid.Parse(adminId),
+                companyId
+            ));
+            
+            return Ok(new { 
+                Message = count > 0 
+                    ? $"{count} users approved successfully." 
+                    : "No unapproved users found.",
+                ApprovedCount = count
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { 
+                Error = "An error occurred during bulk approval.",
+                Details = ex.Message
+            });
+        }
+    }
+[HttpGet("users/unapproved")]
+public async Task<IActionResult> GetUnapprovedUsers()
+{
+    var companyId = User.FindFirst("CompanyId")?.Value;
+    if (string.IsNullOrEmpty(companyId))
+        return Unauthorized(new { Error = "Company ID is missing in the token." });
+
+    var result = await _mediator.Send(new GetUnapprovedUsersQuery(companyId));
+    return Ok(result);
+}
+[HttpGet("employees/wallets")]
+public async Task<IActionResult> GetEmployeeWallets()
+{
+    var companyId = User.FindFirst("CompanyId")?.Value;
+    if (string.IsNullOrEmpty(companyId))
+    {
+        return Unauthorized(new { Error = "Company ID is missing in the token." });
+    }
+
+    try
+    {
+        var result = await _mediator.Send(new GetEmployeeWalletsQuery(companyId));
+        return Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { 
+            Error = "Error retrieving employee wallets",
+            Details = ex.Message
+        });
+    }
+}
+[HttpGet("transactions/export/excel")]
+public async Task<IActionResult> ExportTransactionsToExcel([FromQuery] Guid? userId)
+{
+    var companyId = User.FindFirst("CompanyId")?.Value;
+    if (string.IsNullOrEmpty(companyId))
+        return Unauthorized(new { Error = "Company ID is missing in the token." });
+
+    var query = new GetTransactionsQuery(companyId, userId);
+    var transactions = await _mediator.Send(query);
+
+    using var workbook = new ClosedXML.Excel.XLWorkbook();
+    var worksheet = workbook.Worksheets.Add("Transactions");
+
+    // Header
+    worksheet.Cell(1, 1).Value = "Transaction ID";
+    worksheet.Cell(1, 2).Value = "User ID";
+    worksheet.Cell(1, 3).Value = "Amount";
+    worksheet.Cell(1, 4).Value = "Transaction Type";
+    worksheet.Cell(1, 5).Value = "Date";
+
+    var row = 2;
+    foreach (var tx in transactions)
+    {
+        worksheet.Cell(row, 1).Value = tx.TransactionId;
+        worksheet.Cell(row, 2).Value = tx.UserId.ToString();
+        worksheet.Cell(row, 3).Value = tx.Amount;
+        worksheet.Cell(row, 4).Value = tx.TransactionType ?? "Unknown";  // Handle null values in case TransactionType is empty
+        worksheet.Cell(row, 5).Value = tx.TransactionDate;
+        worksheet.Cell(row, 5).Style.NumberFormat.Format = "yyyy-MM-dd HH:mm:ss";
+        row++;
+    }
+
+    using var stream = new MemoryStream();
+    workbook.SaveAs(stream);
+    stream.Position = 0;
+
+    return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "transactions.xlsx");
 }
 
 
-    }
+
+
+}
 }

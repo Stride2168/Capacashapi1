@@ -1,19 +1,22 @@
-using MediatR;
-using System;
-
-namespace Capacash.Application.Transactions.Commands.ProcessTransaction
+public class ProcessTransactionCommand : IRequest<string>
 {
-    public class ProcessTransactionCommand : IRequest<string> // string = success message
-    {
-        public Guid UserId { get; set; }
-        public decimal Amount { get; set; }
-        public string KioskId { get; set; }
+    public Guid UserId { get; }
+    public string KioskId { get; }
+    public DateTime Timestamp { get; }
+    public decimal Amount { get; }
+    public string TransactionType { get; }
 
-        public ProcessTransactionCommand(Guid userId, decimal amount, string kioskId)
-        {
-            UserId = userId;
-            Amount = amount;
-            KioskId = kioskId;
-        }
+    public ProcessTransactionCommand(
+        Guid userId,       
+        string kioskId,      
+        DateTime timestamp,  
+        decimal amount,      
+        string transactionType) 
+    {
+        UserId = userId;
+        KioskId = kioskId;  
+        Timestamp = timestamp;
+        Amount = amount;
+        TransactionType = transactionType;
     }
 }

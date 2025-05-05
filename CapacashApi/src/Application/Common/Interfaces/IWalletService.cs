@@ -9,7 +9,8 @@ namespace Capacash.Application.Common.Interfaces
      Task AddCreditToWalletAsync(Guid userId, decimal amount);
         Task<Wallet> GetWalletByUserIdAsync(Guid userId);
         Task<List<Wallet>> GetAllWalletsAsync();
-        Task<bool> CreateWalletForUserAsync(Guid userId);
+   
+        Task<Wallet> CreateWalletAsync(Guid userId, String companyId);
            Task<List<Wallet>> GetWalletsByCompanyIdAsync(string companyId); 
     }
 }

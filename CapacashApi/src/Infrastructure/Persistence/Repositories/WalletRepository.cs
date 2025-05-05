@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace Capacash.Infrastructure.Repositories
 {
     public class WalletRepository : IWalletRepository
-    {
+    { 
         private readonly AppDbContext _context;
 
         public WalletRepository(AppDbContext context)
@@ -24,14 +24,39 @@ namespace Capacash.Infrastructure.Repositories
         }
 
         // Create a new wallet for a user
-        public async Task<Wallet> CreateWalletAsync(Guid userId)
-        {
-            var wallet = new Wallet(userId);
-            _context.Wallets.Add(wallet);
-            await _context.SaveChangesAsync();
-            return wallet;
-        }
+       public async Task<Wallet> CreateWalletAsync(Guid userId, string companyId)
+{
+    // Create wallet with both UserId and CompanyId
+    var wallet = new Wallet(userId, companyId)
+    {
+        Balance = 0.00m, // Set initial balance if needed
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
 
+    // Add the wallet to the database context
+    _context.Wallets.Add(wallet);
+    await _context.SaveChangesAsync();
+
+    return wallet;
+}
+public async Task UpdateAsync(Wallet wallet)
+{
+    _context.Wallets.Update(wallet);
+    await _context.SaveChangesAsync();
+}
+
+  public async Task AddAsync(Wallet wallet)
+    {
+        _context.Wallets.Add(wallet);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<Wallet?> GetByUserIdAsync(Guid userId)
+    {
+        return await _context.Wallets
+            .FirstOrDefaultAsync(w => w.UserId == userId);
+    }
         // Get wallet by userId (overloaded for string and Guid)
         public async Task<Wallet?> GetWalletByUserIdAsync(string userId)
         {
@@ -62,17 +87,29 @@ namespace Capacash.Infrastructure.Repositories
                 await _context.SaveChangesAsync();
             }
         }
-   public async Task<List<Wallet>> GetWalletsByCompanyIdAsync(string companyId)
+public async Task<List<Wallet>> GetWalletsByCompanyIdAsync(string companyId)
 {
     return await _context.Wallets
-        .Join(_context.Users, 
-            wallet => wallet.UserId, 
-            user => user.Id, 
+        .Join(_context.Users,
+            wallet => wallet.UserId,
+            user => user.Id,
             (wallet, user) => new { wallet, user })
-        .Where(wu => wu.user.CompanyId == companyId)
+        .Where(wu => wu.user != null && wu.user.CompanyId == companyId)
         .Select(wu => wu.wallet)
         .ToListAsync();
 }
+
+    public async Task<List<Wallet>> GetEmployeeWalletsByCompanyIdAsync(string companyId)
+    {
+        return await _context.Wallets
+            .Join(_context.Users,
+                wallet => wallet.UserId,
+                user => user.Id,
+                (wallet, user) => new { wallet, user })
+            .Where(wu => wu.user.CompanyId == companyId && wu.user.Role == "Employee")
+            .Select(wu => wu.wallet)
+            .ToListAsync();
+    }
 
     }
 }

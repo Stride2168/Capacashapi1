@@ -9,7 +9,7 @@ namespace Capacash.Domain.Entities
         public string? Location { get; private set; }
         public string CompanyId { get; private set; }  // Add CompanyId property
 
-        // ✅ Constructor
+        
         public Kiosk(string kioskId, string passwordHash, string? name, string? location, string companyId)
         {
             KioskId = kioskId ?? throw new ArgumentNullException(nameof(kioskId));

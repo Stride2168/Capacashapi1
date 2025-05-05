@@ -1,7 +1,7 @@
 using Capacash.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace Capacash.Infrastructure.Data
+namespace Capacash.Application.Common.Interfaces
 {
     public interface IAppDbContext
     {
@@ -9,6 +9,9 @@ namespace Capacash.Infrastructure.Data
         DbSet<User> Users { get; set; }
         DbSet<Employee> Employees { get; set; }
         DbSet<Kiosk> Kiosks { get; set; }
-        // Any other DbSets for your entities
+         DbSet<Wallet> Wallets { get; set; }
+        DbSet<Transaction> Transactions { get; set; }
+      Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
     }
 }

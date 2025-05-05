@@ -15,6 +15,11 @@ public class UserRepository : IUserRepository
     {
         _context = context;
     }
+    public async Task<int> BulkUpdateAsync(IEnumerable<User> users)
+    {
+        _context.Users.UpdateRange(users);
+        return await _context.SaveChangesAsync();
+    }
     public async Task<bool> ExistsAdminForCompanyAsync(string companyId)
     {
         return await _context.Users.AnyAsync(u => u.CompanyId == companyId && u.Role == "Admin");
@@ -63,6 +68,12 @@ public async Task UpdateRangeAsync(List<User> users)
 
         
 }
+public async Task<List<User>> GetUsersByCompanyAndRoleAsync(string companyId, string role)
+{
+    return await _context.Users
+        .Where(u => u.CompanyId == companyId && u.Role == role)
+        .ToListAsync();
+}
 public async Task<User?> GetByIdAsync(Guid id)
 {
     return await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
@@ -73,5 +84,10 @@ public async Task<User?> GetByIdAsync(Guid id)
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == userId);
         }
-
+public async Task<List<User>> GetUsersByIdsAsync(List<Guid> userIds)
+{
+    return await _context.Users
+        .Where(u => userIds.Contains(u.Id))
+        .ToListAsync();
+}
 }

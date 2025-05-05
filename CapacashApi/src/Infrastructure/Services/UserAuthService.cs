@@ -9,7 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Capacash.Infrastructure.Services
 {
-    public class UserAuthService
+    public class UserAuthService: IAuthService
     {
         private readonly IUserRepository _userRepository;
         private readonly IConfiguration _configuration;
@@ -21,7 +21,7 @@ private readonly IKioskRepository _kioskRepository;
     _configuration = configuration;
 }
 
-public async Task<string> RegisterUserAsync(string fullName, string email, string password, string companyId)
+public async Task<string> RegisterUserAsync(string fullName, string email, string password, string companyId, string PhoneNumber)
 {
     var existingUser = await _userRepository.GetByEmailAsync(email);
     if (existingUser != null)

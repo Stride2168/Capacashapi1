@@ -1,37 +1,38 @@
-using Capacash.Application.Common.Interfaces;
-using Capacash.Infrastructure.Services;
-using Capacash.Web.Models;
+using Capacash.Application.Auth.Commands;
+using Capacash.Application.Kiosks.Commands;
 using Microsoft.AspNetCore.Mvc;
-
+using Capacash.Application.Commons.DTOs;
 namespace Capacash.Web.Controllers
 {
     [ApiController]
     [Route("api/auth")]
     public class AuthController : ControllerBase
     {
-        private readonly UserAuthService _userAuthService;
-        private readonly IUserRepository _userRepository; 
-        public AuthController(UserAuthService userAuthService, IUserRepository userRepository)
+        private readonly IMediator _mediator;
+        
+        public AuthController(IMediator mediator)
         {
-            _userAuthService = userAuthService ?? throw new ArgumentNullException(nameof(userAuthService));
-            _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _mediator = mediator;
         }
 
-
         [HttpPost("register-employee")]
-        public async Task<IActionResult> RegisterEmployee([FromBody] RegisterEmployeeDto dto)
+        public async Task<IActionResult> RegisterEmployee([FromBody] RegisterEmployeeDto request)
         {
             try
             {
-                // 🔍 Check if an admin exists for the given CompanyId
-                var adminExists = await _userRepository.ExistsAdminForCompanyAsync(dto.CompanyId);
-                if (!adminExists)
-                {
-                    return BadRequest(new { Error = "No company found with the provided Company ID." });
-                }
+                var command = new RegisterEmployeeCommand(
+                    request.FullName,
+                    request.Email,
+                    request.Password,
+                    request.CompanyId,
+                    request.PhoneNumber);
 
-                var token = await _userAuthService.RegisterUserAsync(dto.FullName, dto.Email, dto.Password, dto.CompanyId);
+                var token = await _mediator.Send(command);
                 return Ok(new { Token = token });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -44,22 +45,51 @@ namespace Capacash.Web.Controllers
         {
             try
             {
-                var token = await _userAuthService.LoginAsync(request.Email, request.Password);
-                return Ok(new { Token = token });
+                if (!string.IsNullOrEmpty(request.KioskId))
+                {
+                    // Handle kiosk login
+                    var kioskCommand = new KioskLoginCommand(request.KioskId, request.Password);
+                    var kioskResult = await _mediator.Send(kioskCommand);
+                    return Ok(new { Token = kioskResult.Token });
+                }
+                else if (!string.IsNullOrEmpty(request.Email))
+                {
+                    // Handle user login
+                    var userCommand = new LoginCommand(request.Email, request.Password);
+                    var userToken = await _mediator.Send(userCommand);
+                    return Ok(new { Token = userToken });
+                }
+                else
+                {
+                    return BadRequest(new { Error = "Either Email or KioskId must be provided" });
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { Error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(500, new { Error = ex.Message });
             }
             catch (Exception ex)
             {
                 return BadRequest(new { Error = ex.Message });
             }
         }
-
 
         [HttpPost("register-admin")]
         public async Task<IActionResult> RegisterAdmin([FromBody] RegisterAdminDto dto)
         {
             try
             {
-                var token = await _userAuthService.RegisterAdminAsync(dto.FullName, dto.Email, dto.Password, dto.CompanyId);
+                var command = new RegisterAdminCommand(
+                    dto.FullName,
+                    dto.Email,
+                    dto.Password,
+                    dto.CompanyId);
+
+                var token = await _mediator.Send(command);
                 return Ok(new { Token = token });
             }
             catch (Exception ex)
@@ -69,17 +99,7 @@ namespace Capacash.Web.Controllers
         }
     }
 
-    public class RegisterRequest
-    {
-        public required string FullName { get; set; }
-        public required string Email { get; set; }
-        public required string Password { get; set; }
-        public string CompanyId { get; set; } = string.Empty; // Added Company ID
-    }
 
-    public class LoginRequest
-    {
-        public required string Email { get; set; }
-        public required string Password { get; set; }
-    }
+
+ 
 }

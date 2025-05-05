@@ -11,11 +11,10 @@ using Microsoft.Extensions.Hosting;
 using Capacash.Application.Common.Interfaces;
 using Capacash.Infrastructure.Persistence;
 using Capacash.Infrastructure.Persistence.Repositories;
-
-
 using Capacash.Infrastructure.Repositories;
-using Capacash.Infrastructure.Data;
+
 using Capacash.Infrastructure.Services;
+using Capacash.Domain.Entities;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,7 +26,7 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
         services.AddScoped<IUserRepository, UserRepository>();
-
+   services.AddScoped<INotificationService, OneSignalNotificationService>();
         return services;
     }
     public static void AddInfrastructureServices(this IHostApplicationBuilder builder)
@@ -43,6 +42,9 @@ public static class DependencyInjection
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseSqlServer(connectionString);
         });
+        builder.Services.AddScoped<IQrCodeService, QrCodeService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+
         builder.Services.AddScoped<IAppDbContext>(provider => (IAppDbContext)provider.GetRequiredService<AppDbContext>());
         builder.Services.AddScoped<AppDbContext>();
         builder.Services.AddAuthentication()
@@ -58,4 +60,5 @@ public static class DependencyInjection
         builder.Services.AddAuthorization(options =>
             options.AddPolicy(Policies.CanPurge, policy => policy.RequireRole(Roles.Administrator)));
     }
+    
 }

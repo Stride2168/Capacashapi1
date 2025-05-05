@@ -10,10 +10,14 @@ namespace Capacash.Domain.Entities
         public int Id { get; set; }
 
         [Required]
-        public string? TransactionId { get; set; } //  Unique Transaction ID
+        public string? TransactionId { get; set; }
 
         [Required]
-        public Guid UserId { get; set; } 
+        public Guid UserId { get; set; }
+
+        [Required]
+        [MaxLength(20)]
+        public string TransactionType { get; set; } = "Purchase";
 
         [Required]
         [Column(TypeName = "decimal(18,2)")]
@@ -22,16 +26,29 @@ namespace Capacash.Domain.Entities
         [Required]
         public DateTime TransactionDate { get; set; } = DateTime.UtcNow;
 
+        public string? CompanyId { get; set; }
+
+        // Add these two properties for Kiosk relationship
+        public Guid? KioskId { get; set; }  // Nullable for non-purchase transactions
+        
+        [ForeignKey("KioskId")]
+        public virtual Kiosk? Kiosk { get; set; }  // Navigation property
+
         public User? User { get; set; }
 
         public Transaction() { }
 
-        public Transaction(Guid userId, decimal amount)
+        // Updated constructor with optional kioskId parameter
+        public Transaction(Guid userId, decimal amount, string transactionType = "Purchase", 
+                          string? companyId = null, Guid? kioskId = null)
         {
             UserId = userId;
             Amount = amount;
             TransactionDate = DateTime.UtcNow;
-            TransactionId = GenerateTransactionId(); //  Generate Transaction ID
+            TransactionId = GenerateTransactionId();
+            TransactionType = transactionType;
+            CompanyId = companyId;
+            KioskId = transactionType == "Purchase" ? kioskId : null;  // Only set for purchases
         }
 
         private string GenerateTransactionId()

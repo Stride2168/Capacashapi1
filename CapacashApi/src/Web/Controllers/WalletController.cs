@@ -1,9 +1,12 @@
 using Capacash.Application.Common.Interfaces;
+using Capacash.Application.Commons.DTOs;
+using Capacash.Application.Wallets.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using System.Threading.Tasks;
-
+using Capacash.Web.Models.Wallet;
+using Capacash.Application.Wallets.Commands;
+using Capacash.Application.Transactions.Queries.GetUserTransactions;
 namespace Capacash.Web.Controllers
 {
     [ApiController]
@@ -11,82 +14,175 @@ namespace Capacash.Web.Controllers
     [Authorize] 
     public class WalletController : ControllerBase
     {
-        private readonly IWalletRepository _walletRepository;
- private readonly ITransactionRepository _transactionRepository;
-        public WalletController(IWalletRepository walletRepository, ITransactionRepository transactionRepository)
-        {
-            _walletRepository = walletRepository ?? throw new ArgumentNullException(nameof(walletRepository));
-                        _transactionRepository = transactionRepository;
-        }
+        private readonly IMediator _mediator;
+private readonly IQrCodeService _qrCodeService;
+    private readonly INotificationService _notificationService;
+    private readonly IUserRepository _userRepo;
+public WalletController(IMediator mediator, IQrCodeService qrCodeService, INotificationService notificationService, IUserRepository userRepo)
+{
+    _mediator = mediator;
+    _qrCodeService = qrCodeService;
+    _notificationService = notificationService;
+      _userRepo = userRepo;
+}
 
-    [HttpGet("me")]
+   [HttpGet("me")]
 public async Task<IActionResult> GetMyWallet()
 {
     var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-    Console.WriteLine($"🔍 Extracted User ID: {userId}");
 
-    if (string.IsNullOrEmpty(userId))
+    if (string.IsNullOrWhiteSpace(userId))
     {
-        Console.WriteLine("❌ User ID is missing or invalid.");
-        return Unauthorized(new { Error = "Invalid user session." });
+        return Unauthorized(new { Error = "Invalid user session. User ID is missing." });
     }
 
-    var wallet = await _walletRepository.GetWalletByUserIdAsync(userId);
-    if (wallet == null)
+    try
     {
-        Console.WriteLine($"❌ Wallet not found for User ID: {userId}");
-        return NotFound(new { Error = "Wallet not found." });
+        var result = await _mediator.Send(new GetWalletByUserIdQuery(userId)); // Pass string directly
+        return Ok(result);
     }
-
-    Console.WriteLine($"✅ Wallet found: {wallet.Id}");
-    return Ok(wallet);
+    catch (UnauthorizedAccessException ex)
+    {
+        return Unauthorized(new { Error = ex.Message });
+    }
+    catch (NotFoundException ex)
+    {
+        return NotFound(new { Error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { Error = ex.Message });
+    }
 }
- // ✅ Fetch transaction history for the authenticated employee
-    [HttpGet("transactions")]
-public async Task<IActionResult> GetMyTransactionHistory([FromQuery] string? filter)
+
+[HttpGet("transactions")]
+public async Task<IActionResult> GetMyTransactionHistory(
+    [FromQuery] string? searchTerm,
+    [FromQuery] string? type,
+    [FromQuery] string? dateRange)
 {
-    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-    Console.WriteLine($"🔍 Extracted User ID: {userId}");
+    var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    
+    if (!Guid.TryParse(userIdString, out var userId))
+        return Unauthorized("Invalid user ID format.");
 
-    if (string.IsNullOrEmpty(userId))
+    try
     {
-        Console.WriteLine("❌ User ID is missing or invalid.");
-        return Unauthorized(new { Error = "Invalid user session." });
+        var query = new GetUserTransactionsQuery(
+            userId: userId,
+            searchTerm: searchTerm,
+            transactionType: type,
+            dateRange: dateRange
+        );
+
+        var result = await _mediator.Send(query);
+        return Ok(result);
     }
-
-    var transactions = await _transactionRepository.GetTransactionsByUserIdAsync(Guid.Parse(userId));
-
-    if (transactions == null || !transactions.Any())
+    catch (Exception ex)
     {
-        Console.WriteLine($"❌ No transactions found for User ID: {userId}");
-        return NotFound(new { Error = "No transactions found." });
+        return StatusCode(500, new { Error = ex.Message });
     }
-
-    Console.WriteLine($"✅ Transactions found: {transactions.Count()}");
-
-    // ✅ Apply Filtering Based on Query Parameter
-    DateTime now = DateTime.UtcNow;
-    switch (filter?.ToLower())
-    {
-        case "today":
-            transactions = transactions.Where(t => t.TransactionDate.Date == now.Date);
-            break;
-        case "lastweek":
-            transactions = transactions.Where(t => t.TransactionDate >= now.AddDays(-7));
-            break;
-        case "last30days":
-            transactions = transactions.Where(t => t.TransactionDate >= now.AddDays(-30));
-            break;
-    }
-
-    return Ok(transactions.Select(t => new 
-    {
-        t.TransactionId,
-        t.Amount,
-        t.TransactionDate,
-        t.UserId
-    }));
 }
+
+
+ [HttpPost("scan-qr")]
+[Authorize(Roles = "Employee")]
+public async Task<IActionResult> ScanQrAndProcess([FromBody] ScanQrRequest request)
+{
+    try
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+            return Unauthorized("Invalid token. User ID missing.");
+
+        // Decrypt to strongly-typed payload
+        var payload = _qrCodeService.DecryptPayload<KioskPurchasePayload>(request.QrData);
+        
+        // Validate QR isn't expired (5 minute window)
+        if (payload.Timestamp < DateTime.UtcNow.AddMinutes(-5))
+            return BadRequest(new { Error = "QR code expired" });
+
+      var command = new ProcessTransactionCommand(
+    Guid.Parse(userId),
+    payload.KioskId,
+    payload.Timestamp,
+    payload.Amount,
+    "Purchase"
+);
+        var result = await _mediator.Send(command);
+
+        await _notificationService.SendNotificationAsync(
+            userId,
+            "Purchase Successful", 
+            $"You paid ₱{payload.Amount:0.00} at Kiosk {payload.KioskId}"
+        );
+
+        return Ok(new { 
+            Message = result,
+            Amount = payload.Amount,
+            KioskId = payload.KioskId
+        });
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(new { Error = ex.Message });
+    }
+}
+
+
+
+
+[HttpPost("transfer")]
+[Authorize(Roles = "Employee")]
+public async Task<IActionResult> TransferFunds([FromBody] TransferRequest request)
+{
+    var senderIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (!Guid.TryParse(senderIdStr, out var senderId))
+        return Unauthorized("Invalid user session.");
+
+    var command = new TransferFundsCommand(
+        SenderId: senderId,
+        RecipientId: request.RecipientId,
+        Amount: request.Amount
+    );
+
+    try
+    {
+        var result = await _mediator.Send(command);
+        return Ok(new { Message = result });
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(new { Error = ex.Message });
+    }
+}
+[HttpPost("transfer/preview")]
+[Authorize(Roles = "Employee")]
+public async Task<IActionResult> PreviewTransfer([FromBody] TransferRequest request)
+{
+    var senderIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (!Guid.TryParse(senderIdStr, out var senderId))
+        return Unauthorized("Invalid user session.");
+
+    var sender = await _userRepo.GetByIdAsync(senderId);
+    if (sender == null)
+        return Unauthorized("Sender not found.");
+
+    var recipient = await _userRepo.GetByIdAsync(request.RecipientId);
+    if (recipient == null)
+        return NotFound(new { Error = "Recipient not found." });
+
+    if (sender.CompanyId != recipient.CompanyId)
+        return BadRequest(new { Error = "Transfers must be within the same company." });
+
+    return Ok(new TransferPreviewResponse
+    {
+        RecipientId = recipient.Id,
+        RecipientName = recipient.FullName,
+        Amount = request.Amount
+    });
+}
+
 
     }
 }

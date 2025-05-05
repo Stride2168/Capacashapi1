@@ -12,7 +12,7 @@ namespace Capacash.Infrastructure.Persistence.Configurations
 
             builder.Property(t => t.TransactionId)
                 .IsRequired()
-                .HasMaxLength(50); // Optional: Limit length of generated string
+                .HasMaxLength(50); 
 
             builder.Property(t => t.UserId)
                 .IsRequired();
@@ -25,7 +25,7 @@ namespace Capacash.Infrastructure.Persistence.Configurations
                 .IsRequired();
 
             builder.HasOne(t => t.User)
-                .WithMany() // You can customize this if User has navigation
+                .WithMany()
                 .HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         }

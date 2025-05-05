@@ -6,9 +6,10 @@ using System.IO;
 using Capacash.Infrastructure.Persistence.Configuration;
 using Capacash.Infrastructure.Persistence.Configurations;
 
+using Capacash.Application.Common.Interfaces;
 namespace Capacash.Infrastructure.Persistence
 {
-    public class AppDbContext : DbContext
+    public class AppDbContext : DbContext, IAppDbContext
     {
         
         public DbSet<User> Users { get; set; }
@@ -22,13 +23,16 @@ namespace Capacash.Infrastructure.Persistence
         }
 
         public AppDbContext() { }
-
+  public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return base.SaveChangesAsync(cancellationToken);
+    }
 protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 {
     if (!optionsBuilder.IsConfigured)
     {
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Path.Combine(Directory.GetCurrentDirectory(), "../Web")) // 👈 Point to Web project's config
+            .SetBasePath(Path.Combine(Directory.GetCurrentDirectory(), "../Web")) 
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}.json", optional: true)
             .Build();
@@ -40,7 +44,7 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             throw new InvalidOperationException("Database connection string is missing.");
         }
 
-        optionsBuilder.UseSqlServer(connectionString, b => b.MigrationsAssembly("CapacashApi.Infrastructure")); // 👈 Set correct migrations assembly
+        optionsBuilder.UseSqlServer(connectionString, b => b.MigrationsAssembly("CapacashApi.Infrastructure")); 
     }
 }
    protected override void OnModelCreating(ModelBuilder modelBuilder)

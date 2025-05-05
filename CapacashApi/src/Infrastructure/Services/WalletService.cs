@@ -16,15 +16,23 @@ namespace Capacash.Infrastructure.Services
         }
 
         // Method to create a wallet for a user
-        public async Task<bool> CreateWalletForUserAsync(Guid userId)
-        {
-            var existingWallet = await _walletRepository.GetWalletByUserIdAsync(userId);
-            if (existingWallet != null)
-                return false; // Wallet already exists
+    // Infrastructure/Services/WalletService.cs
+public async Task<Wallet> CreateWalletAsync(Guid userId, String companyId)
+{
+    // Validate inputs
+    if (userId == Guid.Empty)
+        throw new ArgumentException("User ID cannot be empty");
+    if (companyId == String.Empty)
+        throw new ArgumentException("Company ID cannot be empty");
 
-            var wallet = await _walletRepository.CreateWalletAsync(userId);
-            return wallet != null;
-        }
+    // Check if wallet already exists
+    var existingWallet = await _walletRepository.GetByUserIdAsync(userId);
+    if (existingWallet != null)
+        throw new InvalidOperationException("Wallet already exists for this user");
+
+    // Create new wallet
+    return await _walletRepository.CreateWalletAsync(userId, companyId);
+}
 
         // Method to add credit to an employee's wallet
         public async Task AddCreditToWalletAsync(Guid userId, decimal amount)

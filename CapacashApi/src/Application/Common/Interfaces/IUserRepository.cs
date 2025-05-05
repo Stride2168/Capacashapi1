@@ -10,8 +10,12 @@ public interface IUserRepository
     Task UpdateAsync(User user);
 Task<List<User>> GetUnapprovedUsersByCompanyAsync(string companyId);
 Task UpdateRangeAsync(List<User> users);
-Task<List<User>> GetUnapprovedEmployeesByCompanyAsync(string companyId);
+
   Task<User?> GetByIdAsync(Guid id);
     Task<bool> ExistsAdminForCompanyAsync(string companyId);
      Task<User?> GetUserByIdAsync(Guid userId);
+    Task<int> BulkUpdateAsync(IEnumerable<User> users);
+    Task<List<User>> GetUnapprovedEmployeesByCompanyAsync(string companyId);
+     Task<List<User>> GetUsersByCompanyAndRoleAsync(string companyId, string role);
+     Task<List<User>> GetUsersByIdsAsync(List<Guid> userIds);
 }
