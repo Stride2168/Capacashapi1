@@ -39,7 +39,7 @@ namespace Capacash.Application.Wallets.Commands
     await _walletService.AddCreditToWalletAsync(request.UserId, request.Amount);
 
     // 2. Create a new Transaction properly
-    var transaction = new Transaction(
+    var transaction = new Capacash.Domain.Entities.Transaction(
         userId: request.UserId,
         amount: request.Amount,
         transactionType: "Credit" // <-- set to Credit

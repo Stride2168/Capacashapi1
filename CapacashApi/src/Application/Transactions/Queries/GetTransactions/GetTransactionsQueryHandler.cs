@@ -20,7 +20,6 @@ namespace Capacash.Application.Transactions.Queries.GetTransactions
             _context = context;
         }
 
-
         public async Task<List<TransactionDto>> Handle(GetTransactionsQuery request, CancellationToken cancellationToken)
         {
             // Check if the UserId is in valid GUID format
@@ -30,7 +29,8 @@ namespace Capacash.Application.Transactions.Queries.GetTransactions
             }
 
             var query = _context.Transactions
-                .Include(t => t.User) // Necessary to access User.CompanyId
+                .Include(t => t.User)  // Necessary to access User.CompanyId
+                .Include(t => t.Kiosk) // Include Kiosk to get the KioskName
                 .AsNoTracking()
                 .Where(t => t.User != null && t.User.CompanyId == request.CompanyId); // <-- Filter using string CompanyId
 
@@ -43,25 +43,39 @@ namespace Capacash.Application.Transactions.Queries.GetTransactions
             if (request.EndDate.HasValue)
                 query = query.Where(t => t.TransactionDate <= request.EndDate.Value);
 
+            // Now we handle the null checking of KioskName outside the LINQ expression
             var transactions = await query
                 .OrderByDescending(t => t.TransactionDate)
-                .Select(t => new TransactionDto( // Pass parameters to the constructor
+                .Select(t => new 
+                {
                     t.UserId,
                     t.Amount,
                     t.Id,
                     t.TransactionId,
                     t.TransactionDate,
-                    t.TransactionType
-                ))
+                    t.TransactionType,
+                    KioskName = t.Kiosk != null ? t.Kiosk.Name : null  // Handle null checking here
+                })
                 .ToListAsync(cancellationToken);
 
-            if (transactions.Count == 0)
+            // Now map to TransactionDto
+            var transactionDtos = transactions.Select(t => new TransactionDto(
+                t.UserId,
+                t.Amount,
+                t.Id,
+                t.TransactionId,
+                t.TransactionDate,
+                t.TransactionType,
+                t.KioskName
+            )).ToList();
+
+            if (transactionDtos.Count == 0)
             {
                 // Log the case where no transactions are found
                 Console.WriteLine($"No transactions found for UserId: {request.UserId}");
             }
 
-            return transactions;
+            return transactionDtos;
         }
     }
 }

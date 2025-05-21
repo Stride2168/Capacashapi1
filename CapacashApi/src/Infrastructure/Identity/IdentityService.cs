@@ -3,7 +3,7 @@ using CapacashApi.Application.Common.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-
+using Capacash.Domain.Entities;
 namespace CapacashApi.Infrastructure.Identity;
 
 public class IdentityService : IIdentityService

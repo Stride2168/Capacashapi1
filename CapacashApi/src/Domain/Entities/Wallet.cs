@@ -31,7 +31,7 @@ namespace Capacash.Domain.Entities
         public Wallet() { }
 
         // Constructor ensuring the CompanyId is pulled from the User entity
-        public Wallet(Guid userId, string companyId)
+        public Wallet(Guid userId, string? companyId)
         {
             Id = Guid.NewGuid();
             UserId = userId;
@@ -49,7 +49,7 @@ namespace Capacash.Domain.Entities
             UpdatedAt = DateTime.UtcNow;
         }
 
-        // Ensure the CompanyId is consistent with the User entity
+        
         public void UpdateCompanyId(string userCompanyId)
         {
             if (CompanyId != userCompanyId)
@@ -70,6 +70,15 @@ namespace Capacash.Domain.Entities
     this.UpdatedAt = DateTime.UtcNow;
     recipientWallet.UpdatedAt = DateTime.UtcNow;
 }
+public void AddBalance(decimal amount)
+{
+    if (amount <= 0)
+        throw new ArgumentException("Amount must be greater than zero.", nameof(amount));
+
+    Balance += amount;
+    UpdatedAt = DateTime.UtcNow;
+}
+
 
     }
 }

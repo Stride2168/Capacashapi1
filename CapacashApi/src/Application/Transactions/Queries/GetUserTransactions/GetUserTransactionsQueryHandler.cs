@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Capacash.Application.Transactions.Queries.GetUserTransactions
 {
@@ -11,66 +13,77 @@ namespace Capacash.Application.Transactions.Queries.GetUserTransactions
         : IRequestHandler<GetUserTransactionsQuery, List<TransactionDto>>
     {
         private readonly ITransactionRepository _transactionRepository;
+        private readonly ILogger<GetUserTransactionsQueryHandler> _logger;
 
-        public GetUserTransactionsQueryHandler(ITransactionRepository transactionRepository)
+        public GetUserTransactionsQueryHandler(
+            ITransactionRepository transactionRepository,
+            ILogger<GetUserTransactionsQueryHandler> logger)
         {
             _transactionRepository = transactionRepository;
+            _logger = logger;
         }
 
         public async Task<List<TransactionDto>> Handle(
             GetUserTransactionsQuery request, 
             CancellationToken cancellationToken)
         {
-            var transactions = await _transactionRepository
-                .GetTransactionsByUserIdAsync(request.UserId);
-
-            // Apply filters
-            var filtered = transactions.AsQueryable();
-
-            // 1. Search Term (TransactionId only)
-            if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+            try
             {
-                filtered = filtered.Where(t =>
-                    t.TransactionId != null && 
-                    t.TransactionId.Contains(request.SearchTerm));
-            }
+                // Get the base query
+                var query = _transactionRepository
+                    .GetTransactionsByUserIdQueryable(request.UserId);
 
-            // 2. Transaction Type (Case-insensitive)
-            if (!string.IsNullOrWhiteSpace(request.TransactionType))
-            {
-                filtered = filtered.Where(t =>
-                    t.TransactionType.Equals(
-                        request.TransactionType, 
-                        StringComparison.OrdinalIgnoreCase));
-            }
-
-            // 3. Date Range
-            if (!string.IsNullOrWhiteSpace(request.DateRange))
-            {
-                var today = DateTime.UtcNow.Date;
-                filtered = request.DateRange.ToLower() switch
+                // Apply filters
+                if (!string.IsNullOrWhiteSpace(request.SearchTerm))
                 {
-                    "yesterday" => filtered.Where(t => 
-                        t.TransactionDate.Date == today.AddDays(-1)),
-                    "lastweek" => filtered.Where(t => 
-                        t.TransactionDate >= today.AddDays(-7)),
-                    "last30days" => filtered.Where(t => 
-                        t.TransactionDate >= today.AddDays(-30)),
-                    _ => filtered
-                };
-            }
+                    query = query.Where(t =>
+                        t.TransactionId != null && 
+                        t.TransactionId.Contains(request.SearchTerm));
+                }
 
-            return filtered
-                .OrderByDescending(t => t.TransactionDate)
-                .Select(t => new TransactionDto(
-                    t.UserId,       
-                    t.Amount,      
-                    t.Id,          
-                    t.TransactionId, 
-                    t.TransactionDate,
-                    t.TransactionType
-                ))
-                .ToList();
+                if (!string.IsNullOrWhiteSpace(request.TransactionType))
+                {
+                    query = query.Where(t =>
+                        t.TransactionType.ToLower().Contains(request.TransactionType.ToLower()));
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.DateRange))
+                {
+                    var today = DateTime.UtcNow.Date;
+                    query = request.DateRange.ToLower() switch
+                    {
+                        "yesterday" => query.Where(t => 
+                            t.TransactionDate.Date == today.AddDays(-1)),
+                        "lastweek" => query.Where(t => 
+                            t.TransactionDate >= today.AddDays(-7)),
+                        "last30days" => query.Where(t => 
+                            t.TransactionDate >= today.AddDays(-30)),
+                        _ => query
+                    };
+                }
+
+                // Execute the query with projection
+                var result = await query
+                    .OrderByDescending(t => t.TransactionDate)
+                    .Select(t => new TransactionDto(
+                        t.UserId,
+                        t.Amount,
+                        t.Id,
+                        t.TransactionId,
+                        t.TransactionDate,
+                        t.TransactionType,
+                        t.KioskName,
+                        null // companyId
+                    ))
+                    .ToListAsync(cancellationToken);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving transactions for user {UserId}", request.UserId);
+                throw; // Re-throw to let the global exception handler handle it
+            }
         }
     }
 }

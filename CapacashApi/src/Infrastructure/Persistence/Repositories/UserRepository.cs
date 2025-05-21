@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Capacash.Infrastructure.Persistence;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Linq.Expressions;
 
 namespace Capacash.Infrastructure.Persistence.Repositories;
 
@@ -55,6 +56,10 @@ public class UserRepository : IUserRepository
     return await _context.Users
         .Where(u => !u.IsApproved && u.Role == "Employee" && u.CompanyId == companyId)
         .ToListAsync();
+}
+public async Task<List<User>> GetUsersByConditionAsync(Expression<Func<User, bool>> predicate)
+{
+    return await _context.Users.Where(predicate).ToListAsync();
 }
 public async Task UpdateRangeAsync(List<User> users)
 {

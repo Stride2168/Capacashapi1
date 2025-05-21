@@ -16,31 +16,37 @@ namespace Capacash.Application.Common.Interfaces // Removed unnecessary semicolo
             _context = context;
         }
 
-        public async Task<IEnumerable<Transaction>> GetTransactionsByUserIdAsync(Guid userId)
+        public async Task<IEnumerable<Capacash.Domain.Entities.Transaction>> GetTransactionsByUserIdAsync(Guid userId)
         {
             return await _context.Transactions
                 .Where(t => t.UserId == userId)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
-public async Task AddAsync(Transaction transaction)
+          public IQueryable<Capacash.Domain.Entities.Transaction> GetTransactionsByUserIdQueryable(Guid userId)
     {
-        await _context.Transactions.AddAsync(transaction);
-        await _context.SaveChangesAsync();
+        return _context.Transactions
+            .Where(t => t.UserId == userId)
+            .AsQueryable();
     }
-
-        public async Task<Transaction?> GetTransactionByIdAsync(int id)
-        {
-            return await _context.Transactions.FindAsync(id);
-        }
-
-        public async Task CreateTransactionAsync(Transaction transaction)
+public async Task AddAsync(Capacash.Domain.Entities.Transaction transaction)
         {
             await _context.Transactions.AddAsync(transaction);
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<Transaction>> GetTransactionsByCompanyIdAsync(string companyId)
+        public async Task<Capacash.Domain.Entities.Transaction?> GetTransactionByIdAsync(int id)
+        {
+            return await _context.Transactions.FindAsync(id);
+        }
+
+        public async Task CreateTransactionAsync(Capacash.Domain.Entities.Transaction transaction)
+        {
+            await _context.Transactions.AddAsync(transaction);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<List<Capacash.Domain.Entities.Transaction>> GetTransactionsByCompanyIdAsync(string companyId)
         {
             return await _context.Transactions
                 .Where(t => _context.Users.Any(u => u.Id == t.UserId && u.CompanyId == companyId))
@@ -48,9 +54,9 @@ public async Task AddAsync(Transaction transaction)
                 .ToListAsync();
         }
 
-        public async Task<List<Transaction>> GetTransactionsByUserIdAsync(Guid userId, string? filter = null)
+        public async Task<List<Capacash.Domain.Entities.Transaction>> GetTransactionsByUserIdAsync(Guid userId, string? filter = null)
         {
-            IQueryable<Transaction> query = _context.Transactions.Where(t => t.UserId == userId);
+            IQueryable<Capacash.Domain.Entities.Transaction> query = _context.Transactions.Where(t => t.UserId == userId);
 
           if (!string.IsNullOrWhiteSpace(filter))
 {

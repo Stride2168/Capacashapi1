@@ -1,3 +1,4 @@
+
 namespace Capacash.Domain.Entities;
 
 public class User
@@ -11,5 +12,8 @@ public class User
     public bool IsApproved { get; set; } = false;  // New approval field
     public string? CompanyId { get; set; }  // Needed for Employee registration
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    
+    public DateTime? LastPasswordResetAt { get; set; } // NEW
+    public int? RegenerationDayOfMonth { get; set; } // 1–31
+
+
 }

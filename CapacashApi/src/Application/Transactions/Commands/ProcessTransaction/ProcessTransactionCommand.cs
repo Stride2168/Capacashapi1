@@ -6,13 +6,20 @@ public class ProcessTransactionCommand : IRequest<string>
     public decimal Amount { get; }
     public string TransactionType { get; }
 
-    public ProcessTransactionCommand(
+     public ProcessTransactionCommand(
         Guid userId,       
         string kioskId,      
         DateTime timestamp,  
         decimal amount,      
         string transactionType) 
     {
+        // Added validation in constructor
+        if (amount <= 0)
+            throw new ArgumentException("Amount must be greater than zero", nameof(amount));
+            
+        if (string.IsNullOrWhiteSpace(kioskId))
+            throw new ArgumentException("Kiosk ID is required", nameof(kioskId));
+
         UserId = userId;
         KioskId = kioskId;  
         Timestamp = timestamp;

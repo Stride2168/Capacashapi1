@@ -28,19 +28,25 @@ namespace Capacash.Domain.Entities
 
         public string? CompanyId { get; set; }
 
-        // Add these two properties for Kiosk relationship
-        public Guid? KioskId { get; set; }  // Nullable for non-purchase transactions
-        
+        // Kiosk relationship properties
+        public Guid? KioskId { get; set; }
+
+        // New KioskCode property
+        public string? KioskCode { get; set; }
+
         [ForeignKey("KioskId")]
-        public virtual Kiosk? Kiosk { get; set; }  // Navigation property
+        public virtual Kiosk? Kiosk { get; set; }
+
+        // Add KioskName property
+        public string? KioskName { get; set; }
 
         public User? User { get; set; }
 
         public Transaction() { }
 
-        // Updated constructor with optional kioskId parameter
+        // Updated constructor with kioskCode parameter
         public Transaction(Guid userId, decimal amount, string transactionType = "Purchase", 
-                          string? companyId = null, Guid? kioskId = null)
+                           string? companyId = null, Guid? kioskId = null, string? kioskName = null, string? kioskCode = null)
         {
             UserId = userId;
             Amount = amount;
@@ -48,7 +54,9 @@ namespace Capacash.Domain.Entities
             TransactionId = GenerateTransactionId();
             TransactionType = transactionType;
             CompanyId = companyId;
-            KioskId = transactionType == "Purchase" ? kioskId : null;  // Only set for purchases
+            KioskId = transactionType == "Purchase" ? kioskId : null;
+            KioskName = transactionType == "Purchase" ? kioskName : null;
+            KioskCode = transactionType == "Purchase" ? kioskCode : null;
         }
 
         private string GenerateTransactionId()

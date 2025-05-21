@@ -17,25 +17,26 @@ public class OneSignalNotificationService : INotificationService
         _httpClient = new HttpClient();
     }
 
-    public async Task SendNotificationAsync(string userId, string title, string message)
+   public async Task SendNotificationAsync(Guid userId, string title, string message)
+{
+    var payload = new
     {
-        var payload = new
-        {
-            app_id = _appId,
-            headings = new { en = title },
-            contents = new { en = message },
-            include_external_user_ids = new[] { userId }
-        };
+        app_id = _appId,
+        headings = new { en = title },
+        contents = new { en = message },
+        include_external_user_ids = new[] { userId.ToString() }
+    };
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://onesignal.com/api/v1/notifications")
-        {
-            Headers = {
-                { "Authorization", $"Basic {_apiKey}" }
-            },
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-        };
+    var request = new HttpRequestMessage(HttpMethod.Post, "https://onesignal.com/api/v1/notifications")
+    {
+        Headers = {
+            { "Authorization", $"Basic {_apiKey}" }
+        },
+        Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+    };
 
-        var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-    }
+    var response = await _httpClient.SendAsync(request);
+    response.EnsureSuccessStatusCode();
+}
+
 }

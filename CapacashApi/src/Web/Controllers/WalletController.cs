@@ -7,6 +7,8 @@ using System.Security.Claims;
 using Capacash.Web.Models.Wallet;
 using Capacash.Application.Wallets.Commands;
 using Capacash.Application.Transactions.Queries.GetUserTransactions;
+using Capacash.Application.Users.Commands.ResetPassword;
+using Microsoft.Extensions.Logging;
 namespace Capacash.Web.Controllers
 {
     [ApiController]
@@ -18,15 +20,21 @@ namespace Capacash.Web.Controllers
 private readonly IQrCodeService _qrCodeService;
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepo;
-public WalletController(IMediator mediator, IQrCodeService qrCodeService, INotificationService notificationService, IUserRepository userRepo)
-{
-    _mediator = mediator;
-    _qrCodeService = qrCodeService;
-    _notificationService = notificationService;
-      _userRepo = userRepo;
-}
-
-   [HttpGet("me")]
+    private readonly ILogger<WalletController> _logger;
+        public WalletController(ILogger<WalletController> logger, IMediator mediator, IQrCodeService qrCodeService, INotificationService notificationService, IUserRepository userRepo)
+        {
+            _mediator = mediator;
+            _qrCodeService = qrCodeService;
+            _notificationService = notificationService;
+            _userRepo = userRepo;
+            _logger = logger;
+        }
+[HttpGet("ping")]
+[AllowAnonymous]
+public IActionResult Ping() => Ok("pong");
+[Authorize] 
+[HttpGet("me")]
+[Authorize(Roles = "Employee,Admin")]
 public async Task<IActionResult> GetMyWallet()
 {
     var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -38,8 +46,8 @@ public async Task<IActionResult> GetMyWallet()
 
     try
     {
-        var result = await _mediator.Send(new GetWalletByUserIdQuery(userId)); // Pass string directly
-        return Ok(result);
+        var result = await _mediator.Send(new GetWalletByUserIdQuery(userId));
+        return Ok(result);  // The response now includes FullName due to WalletDto update
     }
     catch (UnauthorizedAccessException ex)
     {
@@ -51,20 +59,28 @@ public async Task<IActionResult> GetMyWallet()
     }
     catch (Exception ex)
     {
-        return StatusCode(500, new { Error = ex.Message });
+        _logger.LogError(ex, "An error occurred while fetching the wallet.");
+        return StatusCode(500, new { Error = "An unexpected error occurred." });
     }
 }
 
+
+
 [HttpGet("transactions")]
+[Authorize(Roles = "Employee,Admin")]
 public async Task<IActionResult> GetMyTransactionHistory(
     [FromQuery] string? searchTerm,
     [FromQuery] string? type,
     [FromQuery] string? dateRange)
 {
     var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-    
+    _logger.LogInformation("Fetching transactions for UserID: {UserId}", userIdString);
+
     if (!Guid.TryParse(userIdString, out var userId))
+    {
+        _logger.LogWarning("Invalid user ID format: {UserId}", userIdString);
         return Unauthorized("Invalid user ID format.");
+    }
 
     try
     {
@@ -75,18 +91,26 @@ public async Task<IActionResult> GetMyTransactionHistory(
             dateRange: dateRange
         );
 
+        _logger.LogInformation("Sending GetUserTransactionsQuery with filters: searchTerm={Search}, type={Type}, dateRange={DateRange}", 
+            searchTerm, type, dateRange);
+
         var result = await _mediator.Send(query);
+
+        _logger.LogInformation("Successfully retrieved {Count} transactions for user {UserId}", 
+            result.Count, userId);
+
         return Ok(result);
     }
     catch (Exception ex)
     {
+        _logger.LogError(ex, "An error occurred while retrieving transactions for UserID: {UserId}", userId);
         return StatusCode(500, new { Error = ex.Message });
     }
-}
+}   
 
 
  [HttpPost("scan-qr")]
-[Authorize(Roles = "Employee")]
+[Authorize(Roles = "Employee,Admin")]
 public async Task<IActionResult> ScanQrAndProcess([FromBody] ScanQrRequest request)
 {
     try
@@ -95,24 +119,27 @@ public async Task<IActionResult> ScanQrAndProcess([FromBody] ScanQrRequest reque
         if (string.IsNullOrWhiteSpace(userId))
             return Unauthorized("Invalid token. User ID missing.");
 
-        // Decrypt to strongly-typed payload
         var payload = _qrCodeService.DecryptPayload<KioskPurchasePayload>(request.QrData);
         
-        // Validate QR isn't expired (5 minute window)
+        // Validate amount before creating command
+        if (payload.Amount <= 0)
+            return BadRequest(new { Error = "Amount must be greater than zero" });
+
         if (payload.Timestamp < DateTime.UtcNow.AddMinutes(-5))
             return BadRequest(new { Error = "QR code expired" });
 
-      var command = new ProcessTransactionCommand(
-    Guid.Parse(userId),
-    payload.KioskId,
-    payload.Timestamp,
-    payload.Amount,
-    "Purchase"
-);
+        var command = new ProcessTransactionCommand(
+            Guid.Parse(userId),
+            payload.KioskId,
+            payload.Timestamp,
+            payload.Amount,
+            "Purchase"
+        );
+
         var result = await _mediator.Send(command);
 
         await _notificationService.SendNotificationAsync(
-            userId,
+            Guid.Parse(userId),
             "Purchase Successful", 
             $"You paid ₱{payload.Amount:0.00} at Kiosk {payload.KioskId}"
         );
@@ -122,6 +149,10 @@ public async Task<IActionResult> ScanQrAndProcess([FromBody] ScanQrRequest reque
             Amount = payload.Amount,
             KioskId = payload.KioskId
         });
+    }
+    catch (ArgumentException ex) when (ex.ParamName == "amount")
+    {
+        return BadRequest(new { Error = ex.Message });
     }
     catch (Exception ex)
     {
@@ -133,7 +164,7 @@ public async Task<IActionResult> ScanQrAndProcess([FromBody] ScanQrRequest reque
 
 
 [HttpPost("transfer")]
-[Authorize(Roles = "Employee")]
+[Authorize(Roles = "Employee,Admin")]
 public async Task<IActionResult> TransferFunds([FromBody] TransferRequest request)
 {
     var senderIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -157,7 +188,7 @@ public async Task<IActionResult> TransferFunds([FromBody] TransferRequest reques
     }
 }
 [HttpPost("transfer/preview")]
-[Authorize(Roles = "Employee")]
+[Authorize(Roles = "Employee,Admin")]
 public async Task<IActionResult> PreviewTransfer([FromBody] TransferRequest request)
 {
     var senderIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -182,7 +213,31 @@ public async Task<IActionResult> PreviewTransfer([FromBody] TransferRequest requ
         Amount = request.Amount
     });
 }
+[HttpPost("reset-password")]
+[Authorize(Roles = "Employee,Admin")]
+public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+{
+    var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (!Guid.TryParse(userIdStr, out var userId))
+        return Unauthorized("Invalid user session.");
+
+    try
+    {
+        var command = new ResetPasswordCommand(userId, request.NewPassword);
+        var result = await _mediator.Send(command);
+        return Ok(new { Message = result });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(new { Error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { Error = ex.Message });
+    }
+}
 
 
     }
+    
 }

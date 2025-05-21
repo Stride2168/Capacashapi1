@@ -1,9 +1,12 @@
+using System.Linq.Expressions;
 using Capacash.Domain.Entities;
 
 namespace Capacash.Application.Common.Interfaces;
 
 public interface IUserRepository
 {
+ Task<List<User>> GetUsersByConditionAsync(Expression<Func<User, bool>> predicate);
+
     Task<User?> GetByEmailAsync(string email);
     Task<User?> GetByCompanyIdAsync(string companyId);
     Task AddAsync(User user);

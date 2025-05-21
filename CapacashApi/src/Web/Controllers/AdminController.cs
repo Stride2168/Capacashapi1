@@ -10,6 +10,11 @@ using Capacash.Application.Users.Commands.ApproveUsers.ApproveUserCommand;
 using Capacash.Application.Users.Queries.GetUnapprovedUsers;
 using Capacash.Application.Wallets.Queries;
 using Capacash.Application.Commons.DTOs;
+using Capacash.Application.Kiosks.Commands.EnableKiosk;
+using Capacash.Application.Kiosks.Commands;
+using Capacash.Application.Users.Commands.RegenerateUserCredit;
+using Capacash.Application.Wallets.Commands.MonthlyRegenerateCredit;
+using Capacash.Application.Users.Commands.UpdateRegenerationDay;
 namespace Capacash.WebAPI.Controllers
 {
    [Route("api/admin")]
@@ -43,17 +48,18 @@ public class AdminController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("kiosk/all")]
+        [HttpGet("kiosk/all")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAllKiosks()
-    {
-        var companyId = User.FindFirst("CompanyId")?.Value;
-        if (string.IsNullOrEmpty(companyId))
-            return Unauthorized(new { Error = "Company ID is missing in the token." });
+        {
+            var companyId = User.FindFirst("CompanyId")?.Value;
+            if (string.IsNullOrEmpty(companyId))
+                return Unauthorized(new { Error = "Company ID is missing in the token." });
 
-        var query = new GetAllKiosksQuery(companyId);
-        var result = await _mediator.Send(query);
-        return Ok(result);
-    }
+            var query = new GetAllKiosksQuery(companyId);
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
 
     [HttpPost("credit")]
 public async Task<IActionResult> CreditEmployeeWallet([FromBody] CreditRequest request)
@@ -79,11 +85,38 @@ public async Task<IActionResult> CreditEmployeeWallet([FromBody] CreditRequest r
     await _mediator.Send(command);
     return Ok("Credit added successfully.");
 }
+ [HttpPost("regenerate-now")]
+        public async Task<IActionResult> RegenerateMonthlyCredits()
+        {
+            await _mediator.Send(new MonthlyRegenerateCreditCommand());
+            return Ok(new { message = "Monthly regeneration executed successfully." });
+        }
+[HttpPost("users/{userId}/regenerate-credit")]
+public async Task<IActionResult> RegenerateCredit(Guid userId, [FromBody] RegenerateUserCreditRequest model)
+{
+    var command = new RegenerateUserCreditCommand(
+        UserId: userId,
+        Amount: model.Amount,
+        InitiatedBy: model.InitiatedBy,
+        Notes: model.Notes);
 
+    var result = await _mediator.Send(command);
+    return Ok(result);
+}
 
   
+[Authorize(Roles = "Admin")]
+[HttpPost("admin/users/{userId}/set-regeneration-day")]
+public async Task<IActionResult> SetUserRegenerationDay(Guid userId, [FromBody] SetRegenerationDayDto dto)
+{
+    await _mediator.Send(new UpdateUserRegenerationDayCommand(userId, dto.RegenerationDay));
+    return Ok(new { message = "Regeneration day updated successfully." });
+}
+
+public record SetRegenerationDayDto(int RegenerationDay);
 
 [HttpGet("transactions")]
+
 public async Task<IActionResult> GetAllTransactions(
     [FromQuery] Guid? userId,
     [FromQuery] string? transactionType,
@@ -286,7 +319,27 @@ public async Task<IActionResult> ExportTransactionsToExcel([FromQuery] Guid? use
 
     return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "transactions.xlsx");
 }
+[HttpPut("kiosk/{id}/enable")]
+    public async Task<IActionResult> Enable(Guid id)
+    {
+        await _mediator.Send(new EnableKioskCommand(id));
+        return NoContent();
+    }
 
+    [HttpPut("kiosk/{id}/disable")]
+    public async Task<IActionResult> Disable(Guid id)
+    {
+        await _mediator.Send(new DisableKioskCommand(id));
+        return NoContent();
+    }
+
+    [HttpDelete("kiosk/{id}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+         await _mediator.Send(new DisableKioskCommand(id));
+        await _mediator.Send(new DeleteKioskCommand(id));
+        return NoContent();
+    }
 
 
 

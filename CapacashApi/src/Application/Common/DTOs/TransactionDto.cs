@@ -19,6 +19,7 @@ namespace Capacash.Application.Commons.DTOs
         [Required]
         [MaxLength(20)]
         public string TransactionType { get; set; }
+public string? CompanyId { get; set; }  // 👈 Add this line
 
         // The Transaction Id (Required)
         [Required]
@@ -30,9 +31,13 @@ namespace Capacash.Application.Commons.DTOs
         // The date of the transaction (Required and should be a DateTime)
         [Required]
         public DateTime TransactionDate { get; set; }
-
+        public string? KioskName { get; set; }
         // Constructor to initialize required properties
-        public TransactionDto(Guid userId, decimal amount, int id, string? transactionId, DateTime transactionDate, string transactionType)
+        public TransactionDto() {
+    TransactionType = string.Empty; 
+} 
+        public TransactionDto(Guid userId, decimal amount, int id, string? transactionId, DateTime transactionDate, string transactionType,
+        string? kioskName, string? companyId = null)
         {
             UserId = userId;
             Amount = amount;
@@ -40,6 +45,8 @@ namespace Capacash.Application.Commons.DTOs
             TransactionId = transactionId;
             TransactionDate = transactionDate;
             TransactionType = transactionType;
+            KioskName = kioskName;
+            CompanyId = companyId;
         }
     }
 }

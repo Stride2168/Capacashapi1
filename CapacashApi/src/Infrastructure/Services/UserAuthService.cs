@@ -20,7 +20,14 @@ private readonly IKioskRepository _kioskRepository;
     _kioskRepository = kioskRepository; // Assign the injected repository
     _configuration = configuration;
 }
+ public async Task<string> GetUserRoleAsync(string email)
+    {
+        var user = await _userRepository.GetByEmailAsync(email);
+        if (user == null)
+            throw new Exception("User not found.");
 
+        return user.Role;  // Return the user's role
+    }
 public async Task<string> RegisterUserAsync(string fullName, string email, string password, string companyId, string PhoneNumber)
 {
     var existingUser = await _userRepository.GetByEmailAsync(email);
@@ -61,7 +68,7 @@ public async Task<string> RegisterUserAsync(string fullName, string email, strin
 }
 
 
-private string GenerateJwtToken(User user)
+public string GenerateJwtToken(User user)
 {
     var jwtKey = _configuration["Jwt:Key"];
     if (string.IsNullOrEmpty(jwtKey))

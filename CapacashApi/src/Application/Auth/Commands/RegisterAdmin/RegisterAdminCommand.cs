@@ -4,6 +4,7 @@ namespace Capacash.Application.Auth.Commands
         string FullName,
         string Email,
         string Password,
-        string CompanyId
+        string CompanyId,
+        string PhoneNumber
     ) : IRequest<string>;
 }

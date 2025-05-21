@@ -2,6 +2,7 @@ using Capacash.Application.Auth.Commands;
 using Capacash.Application.Kiosks.Commands;
 using Microsoft.AspNetCore.Mvc;
 using Capacash.Application.Commons.DTOs;
+
 namespace Capacash.Web.Controllers
 {
     [ApiController]
@@ -40,43 +41,56 @@ namespace Capacash.Web.Controllers
             }
         }
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+[HttpPost("login")]
+public async Task<IActionResult> Login([FromBody] LoginRequest request)
+{
+    try
+    {
+        if (!string.IsNullOrEmpty(request.KioskId))
         {
-            try
-            {
-                if (!string.IsNullOrEmpty(request.KioskId))
-                {
-                    // Handle kiosk login
-                    var kioskCommand = new KioskLoginCommand(request.KioskId, request.Password);
-                    var kioskResult = await _mediator.Send(kioskCommand);
-                    return Ok(new { Token = kioskResult.Token });
-                }
-                else if (!string.IsNullOrEmpty(request.Email))
-                {
-                    // Handle user login
-                    var userCommand = new LoginCommand(request.Email, request.Password);
-                    var userToken = await _mediator.Send(userCommand);
-                    return Ok(new { Token = userToken });
-                }
-                else
-                {
-                    return BadRequest(new { Error = "Either Email or KioskId must be provided" });
-                }
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { Error = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return StatusCode(500, new { Error = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { Error = ex.Message });
-            }
+            // Handle kiosk login
+            var kioskCommand = new KioskLoginCommand(request.KioskId, request.Password);
+            var kioskResult = await _mediator.Send(kioskCommand);
+            
+            return Ok(new { 
+                Token = kioskResult.Token,
+                IsKiosk = true
+            });
         }
+        else if (!string.IsNullOrEmpty(request.Email))
+        {
+            // Handle user login
+            var userCommand = new LoginCommand(request.Email, request.Password);
+            var userTokenResponse = await _mediator.Send(userCommand);
+
+            return Ok(new { 
+                Token = userTokenResponse.Token,
+                Role = userTokenResponse.Role, // Access Role from the response
+                IsKiosk = false
+            });
+        }
+        else
+        {
+            return BadRequest(new { Error = "Either Email or KioskId must be provided" });
+        }
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return Unauthorized(new { Error = ex.Message });
+    }
+    catch (InvalidOperationException ex)
+    {
+        // This will catch the "kiosk disabled" case
+        return StatusCode(403, new { 
+            Error = ex.Message,
+            KioskDisabled = true
+        });
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(new { Error = ex.Message });
+    }
+}
 
         [HttpPost("register-admin")]
         public async Task<IActionResult> RegisterAdmin([FromBody] RegisterAdminDto dto)
@@ -87,7 +101,8 @@ namespace Capacash.Web.Controllers
                     dto.FullName,
                     dto.Email,
                     dto.Password,
-                    dto.CompanyId);
+                    dto.CompanyId,
+                      dto.PhoneNumber);
 
                 var token = await _mediator.Send(command);
                 return Ok(new { Token = token });

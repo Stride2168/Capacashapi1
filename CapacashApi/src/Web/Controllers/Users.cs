@@ -1,5 +1,5 @@
 ﻿using CapacashApi.Infrastructure.Identity;
-
+using Capacash.Domain.Entities;
 namespace CapacashApi.Web.Endpoints;
 
 public class Users : EndpointGroupBase

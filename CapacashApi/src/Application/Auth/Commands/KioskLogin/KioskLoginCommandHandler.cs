@@ -24,9 +24,15 @@ public class KioskLoginCommandHandler : IRequestHandler<KioskLoginCommand, AuthR
     public async Task<AuthResult> Handle(KioskLoginCommand request, CancellationToken cancellationToken)
     {
         var kiosk = await _kioskRepository.GetKioskByKioskIdAsync(request.KioskId);
+        
         if (kiosk == null || !BCrypt.Net.BCrypt.Verify(request.Password, kiosk.PasswordHash))
         {
             throw new UnauthorizedAccessException("Invalid Kiosk ID or Password.");
+        }
+
+        if (!kiosk.IsActive)
+        {
+            throw new InvalidOperationException("This kiosk is currently disabled.");
         }
 
         var tokenHandler = new JwtSecurityTokenHandler();
@@ -35,12 +41,14 @@ public class KioskLoginCommandHandler : IRequestHandler<KioskLoginCommand, AuthR
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, kiosk.KioskId),
-                new Claim(ClaimTypes.Role, "Kiosk"),
-                new Claim("CompanyId", kiosk.CompanyId)
-            }),
+           Subject = new ClaimsIdentity(new[]
+{
+    new Claim(ClaimTypes.NameIdentifier, kiosk.Id.ToString()), // ✅ Use Guid
+    new Claim(ClaimTypes.Role, "Kiosk"),
+    new Claim("CompanyId", kiosk.CompanyId),
+    new Claim("KioskCode", kiosk.KioskId) // ✅ Optional: if you want to keep the public-facing code too
+}),
+
             Expires = DateTime.UtcNow.AddHours(8),
             Issuer = _configuration["Jwt:Issuer"],
             Audience = _configuration["Jwt:Audience"],

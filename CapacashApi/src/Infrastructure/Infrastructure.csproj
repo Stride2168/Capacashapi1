@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="BCrypt.Net-Next" />
+    <PackageReference Include="Hangfire.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
@@ -24,6 +25,8 @@
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="QRCoder" />
+    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="System.Drawing.Common" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
 

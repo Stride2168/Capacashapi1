@@ -3,6 +3,10 @@ using QRCoder;
 using Newtonsoft.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.IO;
+using SixLabors.ImageSharp; // ImageSharp
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace Capacash.Infrastructure.Services
 {
@@ -13,10 +17,8 @@ namespace Capacash.Infrastructure.Services
         // Ensure the key is always 32 bytes for AES-256 encryption
         private byte[] GetAesKey()
         {
-            // Convert the encryption key to a byte array (Base64 decoded)
             var keyBytes = Convert.FromBase64String(_encryptionKey);
-            
-            // If the key is not 32 bytes, hash it to create a 32-byte key (e.g., using SHA256)
+
             if (keyBytes.Length != 32)
             {
                 using (SHA256 sha256 = SHA256.Create())
@@ -32,7 +34,7 @@ namespace Capacash.Infrastructure.Services
         {
             var json = JsonConvert.SerializeObject(payload);
             using var aes = Aes.Create();
-            aes.Key = GetAesKey(); // Use the valid 32-byte key
+            aes.Key = GetAesKey();
             aes.GenerateIV();
 
             using var encryptor = aes.CreateEncryptor();
@@ -46,14 +48,44 @@ namespace Capacash.Infrastructure.Services
             return Convert.ToBase64String(combined);
         }
 
-        public string GenerateQrCodeBase64(string payload)
+        // Implement the missing method from the interface
+        public string GenerateQrCodeBase64(string encryptedPayload)
         {
+            // Generate the QR Code base image
+            using var qrGenerator = new QRCodeGenerator();
+            using var qrData = qrGenerator.CreateQrCode(encryptedPayload, QRCodeGenerator.ECCLevel.Q);
+            using var qrCode = new PngByteQRCode(qrData);
+            var qrBytes = qrCode.GetGraphic(20); // Resolution
+
+            // Convert QR Code bytes to a base64 string
+            return Convert.ToBase64String(qrBytes);
+        }
+
+        public string GenerateQrCodeBase64WithLogo(string payload, byte[] logoBytes)
+        {
+            // Generate the QR Code base image
             using var qrGenerator = new QRCodeGenerator();
             using var qrData = qrGenerator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
             using var qrCode = new PngByteQRCode(qrData);
-            var qrBytes = qrCode.GetGraphic(20);
+            var qrBytes = qrCode.GetGraphic(20); // Resolution
 
-            return Convert.ToBase64String(qrBytes);
+            // Load QR code as an ImageSharp image
+            using var qrImage = Image.Load<Rgba32>(qrBytes);
+
+            // Load the logo as an ImageSharp image
+            using var logoImage = Image.Load<Rgba32>(logoBytes);
+
+            var logoWidth = qrImage.Width / 5;  // Size the logo appropriately
+            var logoHeight = qrImage.Height / 5;
+
+            // Place the logo in the center of the QR code
+            logoImage.Mutate(x => x.Resize(logoWidth, logoHeight));
+            qrImage.Mutate(x => x.DrawImage(logoImage, new Point((qrImage.Width - logoWidth) / 2, (qrImage.Height - logoHeight) / 2), 1));
+
+            // Save the final image to a MemoryStream and return it as a Base64 string
+            using var ms = new MemoryStream();
+            qrImage.SaveAsPng(ms);
+            return Convert.ToBase64String(ms.ToArray());
         }
 
         public T DecryptPayload<T>(string encryptedPayload)
